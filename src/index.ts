@@ -41,7 +41,7 @@ const getPrivateKeyFromFile = async (path: string): Promise<PrivateKey> => {
 const program = new Command();
 program.name("cli").description("appchain cli");
 program.option("--admin", "enable admin commands", false);
-program.option("--socket", "run in UNIX socket mode", false);
+program.option("--listen", "listen for commands on a socket", false);
 program.option("-f, --format <format>", "socket IO format: text, cbor", "text");
 program.option("-k, --key <key>", "path to private key", "/tmp/appchain.key");
 program.option(
@@ -54,8 +54,8 @@ program.option("--tx-status-retries <retries>", "status check retries", "10");
 // peek at program options (and set types)
 let opts = {
   help: process.argv.includes("--help") || process.argv.includes("-h"),
+  listen: process.argv.includes("--listen") || process.argv.includes("-l"),
   admin: process.argv.includes("--admin"),
-  socket: process.argv.includes("--socket"),
   format: "",
   key: "",
   txStatusInterval: "",
@@ -357,7 +357,7 @@ const executeCommand = async (
 // CLI mode - parse command line arguments and exit
 ////////////////////////////////////////////////////////////////////////
 
-if (!opts.socket) {
+if (!opts.listen) {
   const command = process.argv.slice(2).join(" ");
   await executeCommand(program, { command, id: 0 }, (res) => {
     console.log(res.data);
@@ -366,7 +366,7 @@ if (!opts.socket) {
 }
 
 ////////////////////////////////////////////////////////////////////////
-// Socket mode - continually handle commands through a UNIX socket
+// Listen mode - continually handle commands through a UNIX socket
 ////////////////////////////////////////////////////////////////////////
 
 // Generate a random filename for the socket
