@@ -44,7 +44,7 @@ func NewApp() *App {
 			"--admin",
 			"--key", "/tmp/admin.key",
 			"--format", "cbor",
-			"--socket"),
+			"--listen"),
 	}
 }
 
