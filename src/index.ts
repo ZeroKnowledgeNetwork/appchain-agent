@@ -1,9 +1,7 @@
 #!/usr/bin/env node --experimental-specifier-resolution=node --experimental-vm-modules --experimental-wasm-modules --experimental-wasm-threads
 
-import * as crypto from "crypto";
 import * as fs from "fs/promises";
 import * as net from "net";
-import * as path from "path";
 import cbor from "cbor";
 import { Command } from "commander";
 import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
@@ -42,6 +40,7 @@ const program = new Command();
 program.name("cli").description("appchain cli");
 program.option("--admin", "enable admin commands", false);
 program.option("--listen", "listen for commands on a socket", false);
+program.option("--socket <path>", "path to UNIX socket", "/tmp/appchain.sock");
 program.option("-f, --format <format>", "socket IO format: text, cbor", "text");
 program.option("-k, --key <key>", "path to private key", "/tmp/appchain.key");
 program.option(
@@ -58,6 +57,7 @@ let opts = {
   admin: process.argv.includes("--admin"),
   format: "",
   key: "",
+  socket: "",
   txStatusInterval: "",
   txStatusRetries: "",
 };
@@ -369,9 +369,7 @@ if (!opts.listen) {
 // Listen mode - continually handle commands through a UNIX socket
 ////////////////////////////////////////////////////////////////////////
 
-// Generate a random filename for the socket
-const randomBytes = crypto.randomBytes(4).toString("hex");
-const socketPath = path.join("/tmp", `appchain-${randomBytes}.sock`);
+const socketPath = opts.socket;
 
 // Override exit so Commander doesn't exit the process, for any reason
 const ogExit = process.exit;
