@@ -43,7 +43,7 @@ func NewApp() *App {
 			"pnpm", "run", "cli",
 			"--admin",
 			"--key", "/tmp/admin.key",
-			"--format", "cbor",
+			"--socket-format", "cbor",
 			"--listen"),
 	}
 }
