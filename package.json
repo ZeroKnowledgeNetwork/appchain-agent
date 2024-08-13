@@ -12,13 +12,13 @@
   },
   "devDependencies": {
     "@types/node": "^20.8.10",
-    "eslint-config-custom": "workspace:*",
-    "tsconfig": "workspace:*",
+    "eslint-config-custom": "file:../appchain/packages/eslint-config-custom",
+    "tsconfig": "file:../appchain/packages/tsconfig",
     "typescript": "4.9.4"
   },
   "dependencies": {
     "cbor": "^9.0.2",
-    "chain": "workspace:*",
+    "chain": "file:../appchain/packages/chain",
     "commander": "^12.1.0",
     "o1js": "0.13.1"
   }
