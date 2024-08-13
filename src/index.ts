@@ -3,7 +3,7 @@
 import * as fs from "fs/promises";
 import * as net from "net";
 import cbor from "cbor";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
 import { client } from "chain";
 import { getNonce, getTxnStatus } from "chain";
@@ -38,26 +38,36 @@ const getPrivateKeyFromFile = async (path: string): Promise<PrivateKey> => {
 
 const program = new Command();
 program.name("cli").description("appchain cli");
-program.option("--admin", "enable admin commands", false);
-program.option("--listen", "listen for commands on a socket", false);
-program.option("--socket <path>", "path to UNIX socket", "/tmp/appchain.sock");
-program.option("-f, --format <format>", "socket IO format: text, cbor", "text");
-program.option("-k, --key <key>", "path to private key", "/tmp/appchain.key");
-program.option(
-  "--tx-status-interval <interval>",
-  "status check interval (ms)",
-  "1000",
-);
-program.option("--tx-status-retries <retries>", "status check retries", "10");
+
+program
+  .option("--admin", "enable admin commands", false)
+  .option("--listen", "listen for commands on a socket", false)
+  .option("--key <key>", "path to private key", "/tmp/appchain.key")
+  .addOption(
+    new Option("--socket <path>", "path to UNIX socket")
+      .default("/tmp/appchain.sock")
+      .implies({ listen: true }),
+  )
+  .addOption(
+    new Option("--socket-format <format>", "socket IO format")
+      .default("text")
+      .choices(["text", "cbor"]),
+  )
+  .option(
+    "--tx-status-interval <interval>",
+    "status check interval (ms)",
+    "1000",
+  )
+  .option("--tx-status-retries <retries>", "status check retries", "10");
 
 // peek at program options (and set types)
 let opts = {
   help: process.argv.includes("--help") || process.argv.includes("-h"),
-  listen: process.argv.includes("--listen") || process.argv.includes("-l"),
   admin: process.argv.includes("--admin"),
-  format: "",
+  listen: process.argv.includes("--listen"),
   key: "",
   socket: "",
+  socketFormat: "",
   txStatusInterval: "",
   txStatusRetries: "",
 };
@@ -392,7 +402,7 @@ const server = net.createServer((socket) => {
   let buffer = Buffer.alloc(0); // Buffer to store incoming data
 
   socket.on("data", async (data) => {
-    if (opts.format === "text") {
+    if (opts.socketFormat === "text") {
       const req = { command: data.toString().trim(), id: id++ };
       await executeCommand(new Command(), req, (res) => {
         socket.write(JSON.stringify(res) + "\n");
@@ -400,7 +410,7 @@ const server = net.createServer((socket) => {
       return;
     }
 
-    if (opts.format === "cbor") {
+    if (opts.socketFormat === "cbor") {
       buffer = Buffer.concat([buffer, data]);
       while (buffer.length > 0) {
         try {
