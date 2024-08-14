@@ -7,6 +7,7 @@ import { Command, Option } from "commander";
 import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
 import { client } from "chain";
 import { getNonce, getTxnStatus } from "chain";
+import { IPFSNode } from "./ipfs";
 
 type CommandRequest = {
   command: string; // command fed to the commander program
@@ -54,6 +55,12 @@ program
       .default("text")
       .choices(["text", "cbor"]),
   )
+  .option("--ipfs", "enable IPFS node", false)
+  .option(
+    "--ipfs-data <path>",
+    "path to IPFS data storage directory",
+    "/tmp/appchain-data",
+  )
   .option(
     "--tx-status-interval <interval>",
     "status check interval (ms)",
@@ -66,9 +73,11 @@ let opts = {
   help: process.argv.includes("--help") || process.argv.includes("-h"),
   admin: process.argv.includes("--admin"),
   listen: process.argv.includes("--listen"),
+  ipfs: process.argv.includes("--ipfs"),
   key: "",
   socket: "",
   socketFormat: "",
+  ipfsData: "",
   txStatusInterval: "",
   txStatusRetries: "",
 };
@@ -365,6 +374,15 @@ const executeCommand = async (
 };
 
 ////////////////////////////////////////////////////////////////////////
+// Start IPFS Node
+////////////////////////////////////////////////////////////////////////
+let ipfsNode: IPFSNode | undefined;
+if (opts.ipfs) {
+  ipfsNode = new IPFSNode({ dataPath: opts.ipfsData });
+  await ipfsNode.start();
+}
+
+////////////////////////////////////////////////////////////////////////
 // CLI mode - parse command line arguments and exit
 ////////////////////////////////////////////////////////////////////////
 
@@ -373,6 +391,7 @@ if (!opts.listen) {
   await executeCommand(program, { command, id: 0 }, (res) => {
     console.log(res.data);
   });
+  if (ipfsNode) await ipfsNode.stop();
   process.exit(0);
 }
 
@@ -389,8 +408,9 @@ process.exit = () => {
 };
 
 // Cleanup on exit
-const cleanup = (code: number | undefined) => {
+const cleanup = async (code: number | undefined) => {
   fs.unlink(socketPath);
+  if (ipfsNode) await ipfsNode.stop();
   ogExit(code);
 };
 
