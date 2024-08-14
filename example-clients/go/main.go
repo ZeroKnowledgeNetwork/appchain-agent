@@ -40,7 +40,7 @@ type CommandResponse struct {
 func NewApp() *App {
 	return &App{
 		cmd: exec.Command(
-			"pnpm", "run", "cli",
+			"pnpm", "run", "agent",
 			"--admin",
 			"--key", "/tmp/admin.key",
 			"--socket-format", "cbor",
