@@ -9,14 +9,15 @@ import { client } from "chain";
 import { getNonce, getTxnStatus } from "chain";
 
 type CommandRequest = {
-  command: string;
-  id?: number;
+  command: string; // command fed to the commander program
+  payload?: string; // additional binary data unsuitable for transmission within `command` string
+  id?: number; // optional id to echo within the corresponding response
 };
 
 type CommandResponse = {
   status: "SUCCESS" | "FAILURE" | "PENDING";
   data: any;
-  id?: number;
+  id?: number; // the id from the corresponding request, if it had one
 };
 
 // Reads and returns a private key from a file.
@@ -131,7 +132,7 @@ const executeCommand = async (
   request: CommandRequest,
   callback: (response: CommandResponse) => void,
 ) => {
-  const { command, id } = request;
+  const { command, payload, id } = request;
 
   if (opts.admin) {
     const commandAdmin = program

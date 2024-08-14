@@ -28,6 +28,7 @@ type App struct {
 
 type CommandRequest struct {
 	Command string `cbor:"command"`
+	Payload []byte `cbor:"payload,omitempty"`
 	ID      int    `cbor:"id,omitempty"`
 }
 
@@ -44,7 +45,8 @@ func NewApp() *App {
 			"--admin",
 			"--key", "/tmp/admin.key",
 			"--socket-format", "cbor",
-			"--listen"),
+			"--listen",
+		),
 	}
 }
 
@@ -130,7 +132,7 @@ func (app *App) terminate() error {
 	return nil
 }
 
-func (app *App) command(command string) (CommandResponse, error) {
+func (app *App) command(command string, payload []byte) (CommandResponse, error) {
 	var response CommandResponse
 
 	// Generate a unique ID for the request
@@ -141,6 +143,7 @@ func (app *App) command(command string) (CommandResponse, error) {
 
 	req := CommandRequest{
 		Command: command,
+		Payload: payload,
 		ID:      reqID,
 	}
 
@@ -180,20 +183,20 @@ func main() {
 
 	defer app.terminate()
 
-	sendCommand := func(command string) {
-		response, err := app.command(command)
+	sendCommand := func(command string, payload []byte) {
+		response, err := app.command(command, payload)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("Response (%s): %+v\n", command, response)
 	}
 
-	sendCommand("token getBalance")
-	sendCommand("faucet getEnabled")
-	sendCommand("faucet setEnabled 0")
-	sendCommand("faucet getEnabled")
-	sendCommand("faucet setEnabled 1")
-	sendCommand("faucet getEnabled")
+	sendCommand("token getBalance", nil)
+	sendCommand("faucet getEnabled", nil)
+	sendCommand("faucet setEnabled 0", nil)
+	sendCommand("faucet getEnabled", nil)
+	sendCommand("faucet setEnabled 1", nil)
+	sendCommand("faucet getEnabled", nil)
 
 	// excute many commands and wait for them all to complete
 	var wg sync.WaitGroup
@@ -201,7 +204,7 @@ func main() {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			sendCommand(fmt.Sprintf("unknown-command-%d", i))
+			sendCommand(fmt.Sprintf("unknown-command-%d", i), nil)
 		}(i)
 	}
 	wg.Wait()
