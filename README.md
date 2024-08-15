@@ -40,9 +40,9 @@ to run as a server that continually handles commands through a UNIX socket.
 Both modes use the same command and argument format. In server mode, binary
 payload data may accompany some commands.
 
-#### Client Examples
+#### Client Libraries and Examples
 
-Refer to [example-clients](example-clients/) for client examples written in
+Refer to [clients](clients/) for client libraries and examples written in
 various languages. If the client launches the appchain agent, it must run in an
 environment supporting the agent (with correct node version, etc).
 
