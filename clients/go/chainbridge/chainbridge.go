@@ -54,31 +54,31 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 }
 
 // Set a custom error handler to be called when an error occurs.
-func (app *ChainBridge) SetErrorHandler(handler func(error)) {
-	app.errorHandler = handler
+func (c *ChainBridge) SetErrorHandler(handler func(error)) {
+	c.errorHandler = handler
 }
 
-func (app *ChainBridge) handleError(err error) {
-	if app.errorHandler != nil {
-		app.errorHandler(err)
+func (c *ChainBridge) handleError(err error) {
+	if c.errorHandler != nil {
+		c.errorHandler(err)
 	}
 }
 
 // Launch starts the ChainBridge either by:
 // - connecting to the existing socket path or
 // - executing the provided command, then connecting to the socket path printed in its stdout.
-func (app *ChainBridge) Launch() error {
-	if app.cmd != nil {
-		stdout, err := app.cmd.StdoutPipe()
+func (c *ChainBridge) Launch() error {
+	if c.cmd != nil {
+		stdout, err := c.cmd.StdoutPipe()
 		if err != nil {
 			return err
 		}
-		stderr, err := app.cmd.StderrPipe()
+		stderr, err := c.cmd.StderrPipe()
 		if err != nil {
 			return err
 		}
 
-		if err := app.cmd.Start(); err != nil {
+		if err := c.cmd.Start(); err != nil {
 			return err
 		}
 
@@ -89,7 +89,7 @@ func (app *ChainBridge) Launch() error {
 			fmt.Println(line)
 			const prefix = "UNIX_SOCKET_PATH="
 			if strings.HasPrefix(line, prefix) {
-				app.socketFile = strings.TrimPrefix(line, prefix)
+				c.socketFile = strings.TrimPrefix(line, prefix)
 				break
 			}
 		}
@@ -97,23 +97,23 @@ func (app *ChainBridge) Launch() error {
 			return err
 		}
 
-		if app.socketFile == "" {
+		if c.socketFile == "" {
 			return fmt.Errorf("socket path not found in output")
 		}
 	}
 
-	app.client = nbio.NewEngine(nbio.Config{})
-	app.client.OnData(app.onData)
+	c.client = nbio.NewEngine(nbio.Config{})
+	c.client.OnData(c.onData)
 
-	if err := app.client.Start(); err != nil {
+	if err := c.client.Start(); err != nil {
 		return fmt.Errorf("nbio client start failed: %v", err)
 	}
 
-	conn, err := nbio.Dial("unix", app.socketFile)
+	conn, err := nbio.Dial("unix", c.socketFile)
 	if err != nil {
 		return fmt.Errorf("Dial error: %v", err)
 	}
-	app.conn, err = app.client.AddConn(conn)
+	c.conn, err = c.client.AddConn(conn)
 	if err != nil {
 		return fmt.Errorf("AddConn error: %v", err)
 	}
@@ -121,45 +121,45 @@ func (app *ChainBridge) Launch() error {
 	return nil
 }
 
-func (app *ChainBridge) onData(c *nbio.Conn, data []byte) {
+func (c *ChainBridge) onData(conn *nbio.Conn, data []byte) {
 	var response CommandResponse
 	if err := cbor.Unmarshal(data, &response); err != nil {
-		app.handleError(fmt.Errorf("CBOR Unmarshal error: %w", err))
+		c.handleError(fmt.Errorf("CBOR Unmarshal error: %w", err))
 		return
 	}
 
 	// Dispatch the response to the correct channel
-	if ch, ok := app.responses.Load(response.ID); ok {
+	if ch, ok := c.responses.Load(response.ID); ok {
 		ch.(chan CommandResponse) <- response
-		app.responses.Delete(response.ID)
+		c.responses.Delete(response.ID)
 	}
 }
 
-func (app *ChainBridge) Terminate() error {
+func (c *ChainBridge) Terminate() error {
 	fmt.Println("Terminating the process")
-	if app.client != nil {
-		app.client.Stop()
+	if c.client != nil {
+		c.client.Stop()
 	}
 
-	if app.cmd != nil {
-		if err := app.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	if c.cmd != nil {
+		if err := c.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			return err
 		}
 		// the agent process should cleanup, but make sure
-		os.Remove(app.socketFile)
+		os.Remove(c.socketFile)
 	}
 
 	return nil
 }
 
-func (app *ChainBridge) Command(command string, payload []byte) (CommandResponse, error) {
+func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, error) {
 	var response CommandResponse
 
 	// Generate a unique ID for the request
-	app.mu.Lock()
-	reqID := app.idCounter
-	app.idCounter++
-	app.mu.Unlock()
+	c.mu.Lock()
+	reqID := c.idCounter
+	c.idCounter++
+	c.mu.Unlock()
 
 	req := CommandRequest{
 		Command: command,
@@ -174,10 +174,10 @@ func (app *ChainBridge) Command(command string, payload []byte) (CommandResponse
 
 	// Create a response channel and store it in the map
 	responseChan := make(chan CommandResponse, 1)
-	app.responses.Store(req.ID, responseChan)
+	c.responses.Store(req.ID, responseChan)
 
 	// Send the request
-	_, err = app.conn.Write(reqData)
+	_, err = c.conn.Write(reqData)
 	if err != nil {
 		return response, fmt.Errorf("Write error: %w", err)
 	}
@@ -187,7 +187,7 @@ func (app *ChainBridge) Command(command string, payload []byte) (CommandResponse
 	case response = <-responseChan:
 		return response, nil
 	case <-time.After(30 * time.Second):
-		app.responses.Delete(req.ID)
+		c.responses.Delete(req.ID)
 		return response, fmt.Errorf("Timeout waiting for response")
 	}
 }
