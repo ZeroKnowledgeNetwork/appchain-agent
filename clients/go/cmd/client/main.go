@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"appchain/chainbridge"
+	"github.com/0KnowledgeNetwork/appchain-agent/clients/go/chainbridge"
 )
 
 func main() {

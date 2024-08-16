@@ -1,6 +1,6 @@
-module appchain
+module github.com/0KnowledgeNetwork/appchain-agent/clients/go
 
-go 1.22.6
+go 1.22.3
 
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0
