@@ -1,8 +1,14 @@
-# 0KN AppChain Agent
+# 0KN ZK AppChain Agent
 
-The 0KN AppChain Agent provides a command-line-interface with full coverage of
-0KN's appchain runtime modules. It has a server mode, bridging appchain
-functionality to other programming luanguages through a UNIX domain socket.
+The 0KN AppChain Agent provides a command-line interface and communications
+bridge with full coverage of 0KN's appchain runtime modules. It has a server
+mode with developing client libraries to connect appchain operations to other
+programming languages through a UNIX domain socket.
+
+Optionally, the agent runs a lightweight IPFS node to contribute to a
+distributed data availability layer for the appchain. For certain appchain
+interactions, the agent seamlessly handles storage and retrieval of data on IPFS
+with the data's Content Identifier indexed within the appchain.
 
 ## Installation
 
