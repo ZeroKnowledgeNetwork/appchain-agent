@@ -8,9 +8,12 @@ import (
 	"github.com/0KnowledgeNetwork/appchain-agent/clients/go/chainbridge"
 )
 
+// This is an example appchain agent client that uses the chainbridge go package
+// to interact with the appchain.
+
 func main() {
 	// Either launch the agent with the command and its arguments
-	app := chainbridge.NewChainBridge(
+	chainbridge := chainbridge.NewChainBridge(
 		"pnpm", "run", "agent",
 		"--admin",
 		"--key", "/tmp/admin.key",
@@ -18,21 +21,25 @@ func main() {
 		"--socket-format", "cbor",
 	)
 	// Or simply connect to the existing socket file
-	// app := chainbridge.NewChainBridge("/tmp/appchain.sock")
+	// chainbridge := chainbridge.NewChainBridge("/tmp/appchain.sock")
 
-	// optionally set an error handler for those not returned by functions
-	app.SetErrorHandler(func(err error) {
+	// Optionally set an error handler for errors not returned by functions
+	chainbridge.SetErrorHandler(func(err error) {
 		log.Printf("Error: %v", err)
 	})
 
-	if err := app.Launch(); err != nil {
+	chainbridge.SetLogHandler(func(message string) {
+		log.Printf("chainbridge: %s", message)
+	})
+
+	if err := chainbridge.Launch(); err != nil {
 		log.Fatal(err)
 	}
 
-	defer app.Terminate()
+	defer chainbridge.Terminate()
 
 	sendCommand := func(command string, payload []byte) {
-		response, err := app.Command(command, payload)
+		response, err := chainbridge.Command(command, payload)
 		if err != nil {
 			log.Fatal(err)
 		}

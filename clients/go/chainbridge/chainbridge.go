@@ -24,6 +24,7 @@ type ChainBridge struct {
 	mu           sync.Mutex
 	idCounter    int
 	errorHandler func(error)
+	logHandler   func(string)
 }
 
 type CommandRequest struct {
@@ -58,9 +59,20 @@ func (c *ChainBridge) SetErrorHandler(handler func(error)) {
 	c.errorHandler = handler
 }
 
+// Set a custom log handler to be called for non-error logs.
+func (c *ChainBridge) SetLogHandler(handler func(string)) {
+	c.logHandler = handler
+}
+
 func (c *ChainBridge) handleError(err error) {
 	if c.errorHandler != nil {
 		c.errorHandler(err)
+	}
+}
+
+func (c *ChainBridge) log(message string) {
+	if c.logHandler != nil {
+		c.logHandler(message)
 	}
 }
 
@@ -86,7 +98,6 @@ func (c *ChainBridge) Launch() error {
 		outScanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
 		for outScanner.Scan() {
 			line := outScanner.Text()
-			fmt.Println(line)
 			const prefix = "UNIX_SOCKET_PATH="
 			if strings.HasPrefix(line, prefix) {
 				c.socketFile = strings.TrimPrefix(line, prefix)
@@ -136,7 +147,6 @@ func (c *ChainBridge) onData(conn *nbio.Conn, data []byte) {
 }
 
 func (c *ChainBridge) Terminate() error {
-	fmt.Println("Terminating the process")
 	if c.client != nil {
 		c.client.Stop()
 	}
