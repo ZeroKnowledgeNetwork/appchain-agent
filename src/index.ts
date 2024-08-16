@@ -111,7 +111,6 @@ const txer = async (txfn: () => void): Promise<CommandResponse> => {
   tx.transaction!.nonce = UInt64.from(n++);
   tx.transaction = tx.transaction?.sign(privateKey);
   await tx.send();
-  // TODO: consider options to getTxnStatus to timeout or how long to wait
 
   if (tx.transaction) {
     const status = await getTxnStatus(
@@ -360,8 +359,8 @@ const executeCommand = async (
   }
 
   program.configureOutput({
-    writeOut: (data) => callback({ id, status: "SUCCESS", data }),
-    writeErr: (data) => callback({ id, status: "FAILURE", data }),
+    writeOut: (data) => callback({ id, status: "SUCCESS", data: data.trim() }),
+    writeErr: (data) => callback({ id, status: "FAILURE", data: data.trim() }),
   });
 
   try {
@@ -376,6 +375,7 @@ const executeCommand = async (
 ////////////////////////////////////////////////////////////////////////
 // Start IPFS Node
 ////////////////////////////////////////////////////////////////////////
+
 let ipfsNode: IPFSNode | undefined;
 if (opts.ipfs) {
   ipfsNode = new IPFSNode({ dataPath: opts.ipfsData });
