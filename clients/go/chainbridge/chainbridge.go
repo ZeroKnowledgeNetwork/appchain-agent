@@ -1,4 +1,4 @@
-package main
+package chainbridge
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"github.com/lesismal/nbio"
 )
 
-type App struct {
+type ChainBridge struct {
 	cmd        *exec.Cmd
 	socketFile string
 	client     *nbio.Engine
@@ -38,8 +38,8 @@ type CommandResponse struct {
 	ID     int         `cbor:"id,omitempty"`
 }
 
-func NewApp() *App {
-	return &App{
+func NewChainBridge() *ChainBridge {
+	return &ChainBridge{
 		cmd: exec.Command(
 			"pnpm", "run", "agent",
 			"--admin",
@@ -50,7 +50,7 @@ func NewApp() *App {
 	}
 }
 
-func (app *App) launch() error {
+func (app *ChainBridge) Launch() error {
 	stdout, err := app.cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (app *App) launch() error {
 	return nil
 }
 
-func (app *App) onData(c *nbio.Conn, data []byte) {
+func (app *ChainBridge) onData(c *nbio.Conn, data []byte) {
 	var response CommandResponse
 	if err := cbor.Unmarshal(data, &response); err != nil {
 		log.Printf("CBOR Unmarshal error: %v\n", err)
@@ -116,7 +116,7 @@ func (app *App) onData(c *nbio.Conn, data []byte) {
 	}
 }
 
-func (app *App) terminate() error {
+func (app *ChainBridge) Terminate() error {
 	fmt.Println("Terminating the process")
 	if app.client != nil {
 		app.client.Stop()
@@ -132,7 +132,7 @@ func (app *App) terminate() error {
 	return nil
 }
 
-func (app *App) command(command string, payload []byte) (CommandResponse, error) {
+func (app *ChainBridge) Command(command string, payload []byte) (CommandResponse, error) {
 	var response CommandResponse
 
 	// Generate a unique ID for the request
@@ -170,42 +170,4 @@ func (app *App) command(command string, payload []byte) (CommandResponse, error)
 		app.responses.Delete(req.ID)
 		return response, fmt.Errorf("Timeout waiting for response")
 	}
-}
-
-func main() {
-	app := NewApp()
-
-	if err := app.launch(); err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Socket file:", app.socketFile)
-
-	defer app.terminate()
-
-	sendCommand := func(command string, payload []byte) {
-		response, err := app.command(command, payload)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Response (%s): %+v\n", command, response)
-	}
-
-	sendCommand("token getBalance", nil)
-	sendCommand("faucet getEnabled", nil)
-	sendCommand("faucet setEnabled 0", nil)
-	sendCommand("faucet getEnabled", nil)
-	sendCommand("faucet setEnabled 1", nil)
-	sendCommand("faucet getEnabled", nil)
-
-	// excute many commands and wait for them all to complete
-	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			sendCommand(fmt.Sprintf("unknown-command-%d", i), nil)
-		}(i)
-	}
-	wg.Wait()
 }

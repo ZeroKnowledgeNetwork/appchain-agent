@@ -1,6 +1,6 @@
-module appchain-client
+module appchain
 
-go 1.22.4
+go 1.22.6
 
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0
