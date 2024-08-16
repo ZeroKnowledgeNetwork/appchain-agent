@@ -38,49 +38,57 @@ type CommandResponse struct {
 	ID     int         `cbor:"id,omitempty"`
 }
 
-func NewChainBridge() *ChainBridge {
+// NewChainBridge initializes a ChainBridge instance. It accepts either:
+// - a socket path or
+// - a command with its arguments to launch the process.
+func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *ChainBridge {
+	var cmd *exec.Cmd
+	if len(commandArgs) > 0 {
+		cmd = exec.Command(socketFileOrCommandName, commandArgs...)
+	}
+
 	return &ChainBridge{
-		cmd: exec.Command(
-			"pnpm", "run", "agent",
-			"--admin",
-			"--key", "/tmp/admin.key",
-			"--socket-format", "cbor",
-			"--listen",
-		),
+		cmd:        cmd,
+		socketFile: socketFileOrCommandName,
 	}
 }
 
+// Launch starts the ChainBridge either by:
+// - connecting to the existing socket path or
+// - executing the provided command, then connecting to the socket path printed in its stdout.
 func (app *ChainBridge) Launch() error {
-	stdout, err := app.cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := app.cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	if err := app.cmd.Start(); err != nil {
-		return err
-	}
-
-	// Read the socket location from stdout
-	outScanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
-	for outScanner.Scan() {
-		line := outScanner.Text()
-		fmt.Println(line)
-		const prefix = "UNIX_SOCKET_PATH="
-		if strings.HasPrefix(line, prefix) {
-			app.socketFile = strings.TrimPrefix(line, prefix)
-			break
+	if app.cmd != nil {
+		stdout, err := app.cmd.StdoutPipe()
+		if err != nil {
+			return err
 		}
-	}
-	if err := outScanner.Err(); err != nil {
-		return err
-	}
+		stderr, err := app.cmd.StderrPipe()
+		if err != nil {
+			return err
+		}
 
-	if app.socketFile == "" {
-		return fmt.Errorf("socket path not found in output")
+		if err := app.cmd.Start(); err != nil {
+			return err
+		}
+
+		// Read the socket location from stdout
+		outScanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+		for outScanner.Scan() {
+			line := outScanner.Text()
+			fmt.Println(line)
+			const prefix = "UNIX_SOCKET_PATH="
+			if strings.HasPrefix(line, prefix) {
+				app.socketFile = strings.TrimPrefix(line, prefix)
+				break
+			}
+		}
+		if err := outScanner.Err(); err != nil {
+			return err
+		}
+
+		if app.socketFile == "" {
+			return fmt.Errorf("socket path not found in output")
+		}
 	}
 
 	app.client = nbio.NewEngine(nbio.Config{})
@@ -122,12 +130,13 @@ func (app *ChainBridge) Terminate() error {
 		app.client.Stop()
 	}
 
-	if err := app.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		return err
+	if app.cmd != nil {
+		if err := app.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			return err
+		}
+		// the agent process should cleanup, but make sure
+		os.Remove(app.socketFile)
 	}
-
-	// the process should cleanup, but make sure
-	os.Remove(app.socketFile)
 
 	return nil
 }

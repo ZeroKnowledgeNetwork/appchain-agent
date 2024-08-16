@@ -9,7 +9,16 @@ import (
 )
 
 func main() {
-	app := chainbridge.NewChainBridge()
+	// Either launch the agent with the command and its arguments
+	app := chainbridge.NewChainBridge(
+		"pnpm", "run", "agent",
+		"--admin",
+		"--key", "/tmp/admin.key",
+		"--listen",
+		"--socket-format", "cbor",
+	)
+	// Or simply connect to the existing socket file
+	// app := chainbridge.NewChainBridge("/tmp/appchain.sock")
 
 	if err := app.Launch(); err != nil {
 		log.Fatal(err)
