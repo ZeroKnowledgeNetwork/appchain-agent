@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,13 +16,14 @@ import (
 )
 
 type ChainBridge struct {
-	cmd        *exec.Cmd
-	socketFile string
-	client     *nbio.Engine
-	conn       *nbio.Conn
-	responses  sync.Map
-	mu         sync.Mutex
-	idCounter  int
+	cmd          *exec.Cmd
+	socketFile   string
+	client       *nbio.Engine
+	conn         *nbio.Conn
+	responses    sync.Map
+	mu           sync.Mutex
+	idCounter    int
+	errorHandler func(error)
 }
 
 type CommandRequest struct {
@@ -50,6 +50,17 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 	return &ChainBridge{
 		cmd:        cmd,
 		socketFile: socketFileOrCommandName,
+	}
+}
+
+// Set a custom error handler to be called when an error occurs.
+func (app *ChainBridge) SetErrorHandler(handler func(error)) {
+	app.errorHandler = handler
+}
+
+func (app *ChainBridge) handleError(err error) {
+	if app.errorHandler != nil {
+		app.errorHandler(err)
 	}
 }
 
@@ -113,7 +124,7 @@ func (app *ChainBridge) Launch() error {
 func (app *ChainBridge) onData(c *nbio.Conn, data []byte) {
 	var response CommandResponse
 	if err := cbor.Unmarshal(data, &response); err != nil {
-		log.Printf("CBOR Unmarshal error: %v\n", err)
+		app.handleError(fmt.Errorf("CBOR Unmarshal error: %w", err))
 		return
 	}
 

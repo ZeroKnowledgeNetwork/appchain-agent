@@ -20,6 +20,11 @@ func main() {
 	// Or simply connect to the existing socket file
 	// app := chainbridge.NewChainBridge("/tmp/appchain.sock")
 
+	// optionally set an error handler for those not returned by functions
+	app.SetErrorHandler(func(err error) {
+		log.Printf("Error: %v", err)
+	})
+
 	if err := app.Launch(); err != nil {
 		log.Fatal(err)
 	}
