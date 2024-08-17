@@ -78,9 +78,12 @@ func (c *ChainBridge) log(message string) {
 }
 
 // Launch starts the ChainBridge either by:
+// Start the ChainBridge either by:
 // - connecting to the existing socket path or
 // - executing the provided command, then connecting to the socket path printed in its stdout.
-func (c *ChainBridge) Launch() error {
+func (c *ChainBridge) Start() error {
+	c.log("Starting...")
+
 	if c.cmd != nil {
 		stdout, err := c.cmd.StdoutPipe()
 		if err != nil {
@@ -147,7 +150,9 @@ func (c *ChainBridge) onData(conn *nbio.Conn, data []byte) {
 	}
 }
 
-func (c *ChainBridge) Terminate() error {
+func (c *ChainBridge) Stop() error {
+	c.log("Stopping...")
+
 	if c.client != nil {
 		c.client.Stop()
 	}

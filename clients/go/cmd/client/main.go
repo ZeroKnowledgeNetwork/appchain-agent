@@ -32,11 +32,11 @@ func main() {
 		log.Printf("chainbridge: %s", message)
 	})
 
-	if err := chainbridge.Launch(); err != nil {
+	if err := chainbridge.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	defer chainbridge.Terminate()
+	defer chainbridge.Stop()
 
 	sendCommand := func(command string, payload []byte) {
 		response, err := chainbridge.Command(command, payload)
