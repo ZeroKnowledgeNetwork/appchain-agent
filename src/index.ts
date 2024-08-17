@@ -18,6 +18,7 @@ type CommandResponse = {
   status: "SUCCESS" | "FAILURE" | "PENDING";
   data: any;
   id?: number; // the id from the corresponding request, if it had one
+  tx?: string; // the hash of the transaction, if it had a transaction
 };
 
 // Reads and returns a private key from a file.
@@ -65,7 +66,11 @@ program
     "status check interval (ms)",
     "1000",
   )
-  .option("--tx-status-retries <retries>", "status check retries", "10");
+  .option(
+    "--tx-status-retries <retries>",
+    "status check retries (use 0 to disable)",
+    "10",
+  );
 
 // peek at program options (and set types)
 let opts = {
@@ -119,10 +124,10 @@ const txer = async (txfn: () => void): Promise<CommandResponse> => {
       parseInt(opts.txStatusInterval),
       parseInt(opts.txStatusRetries),
     );
-    console.log("tx", status);
     return {
       status: status.status,
       data: status.statusMessage,
+      tx: tx.transaction.hash().toString(),
     };
   }
 

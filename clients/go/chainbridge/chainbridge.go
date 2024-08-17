@@ -45,6 +45,7 @@ type CommandResponse struct {
 	Status string      `cbor:"status"`
 	Data   interface{} `cbor:"data"`
 	ID     int         `cbor:"id,omitempty"`
+	TX     string      `cbor:"tx,omitempty"`
 }
 
 // Initialize a ChainBridge instance. Accepts either:
