@@ -41,9 +41,10 @@ func main() {
 	sendCommand := func(command string, payload []byte) {
 		response, err := chainbridge.Command(command, payload)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Error: %v", err)
+		} else {
+			log.Printf("Response (%s): %+v\n", command, response)
 		}
-		fmt.Printf("Response (%s): %+v\n", command, response)
 	}
 
 	sendCommand("token getBalance", nil)

@@ -24,8 +24,15 @@ type ChainBridge struct {
 	idCounter    int
 	errorHandler func(error)
 	logHandler   func(string)
+	dialRetries  int
+	dialTimeout  time.Duration
+	cmdTimeout   time.Duration
+	reconnect    bool
+	isConnected  bool
 
 	idCounterMu   sync.Mutex
+	isConnectedMu sync.Mutex
+	reconnectMu   sync.Mutex
 }
 
 type CommandRequest struct {
@@ -40,7 +47,7 @@ type CommandResponse struct {
 	ID     int         `cbor:"id,omitempty"`
 }
 
-// NewChainBridge initializes a ChainBridge instance. It accepts either:
+// Initialize a ChainBridge instance. Accepts either:
 // - a socket path or
 // - a command with its arguments to launch the process.
 func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *ChainBridge {
@@ -50,8 +57,13 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 	}
 
 	return &ChainBridge{
-		cmd:        cmd,
-		socketFile: socketFileOrCommandName,
+		cmd:         cmd,
+		socketFile:  socketFileOrCommandName,
+		dialRetries: 10,
+		dialTimeout: 3 * time.Second,
+		cmdTimeout:  10 * time.Second,
+		reconnect:   true,
+		isConnected: false,
 	}
 }
 
@@ -77,7 +89,29 @@ func (c *ChainBridge) log(message string) {
 	}
 }
 
-// Launch starts the ChainBridge either by:
+func (c *ChainBridge) connectToSocket() error {
+	for i := 0; i < c.dialRetries; i++ {
+		c.log(fmt.Sprintf("Attempting to connect to socket: %s (attempt %d/%d)", c.socketFile, i+1, c.dialRetries))
+		conn, err := nbio.DialTimeout("unix", c.socketFile, c.dialTimeout)
+		if err == nil {
+			c.conn, err = c.client.AddConn(conn)
+			if err == nil {
+				c.log("Successfully connected to socket.")
+				c.isConnectedMu.Lock()
+				c.isConnected = true
+				c.isConnectedMu.Unlock()
+				return nil
+			}
+		}
+		if !c.reconnect {
+			return nil
+		}
+		c.log(fmt.Sprintf("Failed to connect to socket: %v", err))
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("Failed to connect after %d attempts", c.dialRetries)
+}
+
 // Start the ChainBridge either by:
 // - connecting to the existing socket path or
 // - executing the provided command, then connecting to the socket path printed in its stdout.
@@ -119,21 +153,17 @@ func (c *ChainBridge) Start() error {
 
 	c.client = nbio.NewEngine(nbio.Config{})
 	c.client.OnData(c.onData)
+	c.client.OnClose(c.onClose)
 
 	if err := c.client.Start(); err != nil {
 		return fmt.Errorf("nbio client start failed: %v", err)
 	}
 
-	conn, err := nbio.Dial("unix", c.socketFile)
-	if err != nil {
-		return fmt.Errorf("Dial error: %v", err)
-	}
-	c.conn, err = c.client.AddConn(conn)
-	if err != nil {
-		return fmt.Errorf("AddConn error: %v", err)
-	}
+	c.reconnectMu.Lock()
+	c.reconnect = true
+	c.reconnectMu.Unlock()
 
-	return nil
+	return c.connectToSocket()
 }
 
 func (c *ChainBridge) onData(conn *nbio.Conn, data []byte) {
@@ -150,8 +180,26 @@ func (c *ChainBridge) onData(conn *nbio.Conn, data []byte) {
 	}
 }
 
+func (c *ChainBridge) onClose(conn *nbio.Conn, err error) {
+	c.isConnectedMu.Lock()
+	c.isConnected = false
+	c.isConnectedMu.Unlock()
+
+	c.log("Connection closed")
+
+	if c.reconnect {
+		if err := c.connectToSocket(); err != nil {
+			c.handleError(fmt.Errorf("Failed to reconnect: %w", err))
+		}
+	}
+}
+
 func (c *ChainBridge) Stop() error {
 	c.log("Stopping...")
+
+	c.reconnectMu.Lock()
+	c.reconnect = false
+	c.reconnectMu.Unlock()
 
 	if c.client != nil {
 		c.client.Stop()
@@ -170,6 +218,10 @@ func (c *ChainBridge) Stop() error {
 
 func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, error) {
 	var response CommandResponse
+
+	if !c.isConnected {
+		return response, fmt.Errorf("Not connected")
+	}
 
 	// Generate a unique ID for the request
 	c.idCounterMu.Lock()
@@ -202,8 +254,8 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 	select {
 	case response = <-responseChan:
 		return response, nil
-	case <-time.After(30 * time.Second):
+	case <-time.After(c.cmdTimeout):
 		c.responses.Delete(req.ID)
-		return response, fmt.Errorf("Timeout waiting for response")
+		return response, fmt.Errorf("Timeout waiting for response to request ID=%d", req.ID)
 	}
 }
