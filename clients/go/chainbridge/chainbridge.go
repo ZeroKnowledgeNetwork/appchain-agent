@@ -21,10 +21,11 @@ type ChainBridge struct {
 	client       *nbio.Engine
 	conn         *nbio.Conn
 	responses    sync.Map
-	mu           sync.Mutex
 	idCounter    int
 	errorHandler func(error)
 	logHandler   func(string)
+
+	idCounterMu   sync.Mutex
 }
 
 type CommandRequest struct {
@@ -166,10 +167,10 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 	var response CommandResponse
 
 	// Generate a unique ID for the request
-	c.mu.Lock()
+	c.idCounterMu.Lock()
 	reqID := c.idCounter
 	c.idCounter++
-	c.mu.Unlock()
+	c.idCounterMu.Unlock()
 
 	req := CommandRequest{
 		Command: command,
