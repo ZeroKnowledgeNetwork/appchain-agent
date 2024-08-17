@@ -5,8 +5,7 @@ import * as net from "net";
 import cbor from "cbor";
 import { Command, Option } from "commander";
 import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
-import { client } from "chain";
-import { getNonce, getTxnStatus } from "chain";
+import { client, getTxnStatus } from "chain";
 import { IPFSNode } from "./ipfs";
 
 type CommandRequest = {
@@ -105,14 +104,13 @@ const token = client.runtime.resolve("Token");
 
 // helper function to send transactions
 const txer = async (txfn: () => void): Promise<CommandResponse> => {
-  let n = await getNonce(publicKey.toBase58());
-  console.log("nonce", n);
   const tx = await client.transaction(publicKey, txfn);
-  tx.transaction!.nonce = UInt64.from(n++);
+  console.log("tx.nonce", tx.transaction!.nonce.toString());
   tx.transaction = tx.transaction?.sign(privateKey);
   await tx.send();
 
   if (tx.transaction) {
+    console.log("tx.hash", tx.transaction.hash().toString());
     const status = await getTxnStatus(
       tx.transaction,
       () => {
