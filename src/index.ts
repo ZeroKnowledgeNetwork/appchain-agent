@@ -5,7 +5,7 @@ import * as net from "net";
 import cbor from "cbor";
 import { Command, Option } from "commander";
 import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
-import { client, getTxnStatus } from "chain";
+import { client, getTxnState, getTxnStatus } from "chain";
 import { IPFSNode } from "./ipfs";
 
 type CommandRequest = {
@@ -355,6 +355,25 @@ const executeCommand = async (
         callback({ id, ...r });
       });
   }
+
+  const commandAux = program
+    .command("_")
+    .description("Additional commands not part of appchain runtime");
+  commandAux
+    .command("getTxnState <hash>")
+    .description("get the state of a transaction")
+    .action(async (hash: string) => {
+      try {
+        const state = await getTxnState(hash);
+        return callback({ id, status: "SUCCESS", data: state });
+      } catch (err: any) {
+        return callback({
+          id,
+          status: "FAILURE",
+          data: `Error: ${err.message}`,
+        });
+      }
+    });
 
   program.configureOutput({
     writeOut: (data) => callback({ id, status: "SUCCESS", data: data.trim() }),
