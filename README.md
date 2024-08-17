@@ -30,8 +30,7 @@ pnpm install
 
 ## Usage
 
-With the appchain running, execute the agent and refer to the built-in help info
-for complete command reference.
+Refer to the agent's built-in help system for complete command reference.
 
 ```sh
 pnpm run agent --help
@@ -110,6 +109,7 @@ command execution back to the client. It contains the following fields:
   of this field depend on the specific command and its result.
 - `id` (integer, optional): The identifier for the request that this response
   corresponds to.
+- `tx` (string, optional): The transaction hash, if the command had one
 
 Example:
 
