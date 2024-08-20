@@ -4,9 +4,9 @@ import * as fs from "fs/promises";
 import * as net from "net";
 import cbor from "cbor";
 import { Command, Option } from "commander";
-import { Bool, PrivateKey, PublicKey, UInt64 } from "o1js";
-import { client, getTxnState, getTxnStatus } from "chain";
+import { Bool, PrivateKey, PublicKey } from "o1js";
 import { IPFSNode } from "./ipfs";
+import { Balance, TreasuryId, client, getTxnState, getTxnStatus } from "chain";
 
 type CommandRequest = {
   command: string; // command fed to the commander program
@@ -108,14 +108,13 @@ const nodes = client.runtime.resolve("Nodes");
 const token = client.runtime.resolve("Token");
 
 // helper function to send transactions
-const txer = async (txfn: () => void): Promise<CommandResponse> => {
+const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
   const tx = await client.transaction(publicKey, txfn);
   console.log("tx.nonce", tx.transaction!.nonce.toString());
   tx.transaction = tx.transaction?.sign(privateKey);
   await tx.send();
 
   if (tx.transaction) {
-    console.log("tx.hash", tx.transaction.hash().toString());
     const status = await getTxnStatus(
       tx.transaction,
       () => {
@@ -160,8 +159,8 @@ const executeCommand = async (
       .command("setAdmin <admin>")
       .description("[admin] set the chain admin")
       .action(async (newAdmin: string) => {
-        const r = await txer(() => {
-          admin.setAdmin(PublicKey.fromBase58(newAdmin));
+        const r = await txer(async () => {
+          await admin.setAdmin(PublicKey.fromBase58(newAdmin));
         });
         callback({ id, ...r });
       });
@@ -187,8 +186,8 @@ const executeCommand = async (
     .description("drip tokens from the faucet")
     .action(async () => {
       console.log("drip tokens from the faucet");
-      const r = await txer(() => {
-        faucet.drip();
+      const r = await txer(async () => {
+        await faucet.drip();
       });
       callback({ id, ...r });
     });
@@ -210,7 +209,9 @@ const executeCommand = async (
     .command("getTreasury")
     .description("get amount of funds in faucet treasury")
     .action(async () => {
-      const amount = await client.query.runtime.Faucet.treasury.get();
+      const treasuryId = client.runtime.config.Faucet!.treasuryId;
+      const treasuryKey = TreasuryId.toPublicKey(treasuryId);
+      const amount = await client.query.runtime.Token.ledger.get(treasuryKey);
       callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
     });
   if (opts.admin) {
@@ -218,8 +219,8 @@ const executeCommand = async (
       .command("setEnabled <enabled>")
       .description("[admin] enable (or disable) faucet (0 or 1)")
       .action(async (enabled: boolean) => {
-        const r = await txer(() => {
-          faucet.setEnabled(Bool(enabled));
+        const r = await txer(async () => {
+          await faucet.setEnabled(Bool(enabled));
         });
         callback({ id, ...r });
       });
@@ -227,8 +228,8 @@ const executeCommand = async (
       .command("setDripAmount <amount>")
       .description("[admin] set faucet drop amount")
       .action(async (amount: number) => {
-        const r = await txer(() => {
-          faucet.setDripAmount(UInt64.from(amount));
+        const r = await txer(async () => {
+          await faucet.setDripAmount(Balance.from(amount));
         });
         callback({ id, ...r });
       });
@@ -236,17 +237,8 @@ const executeCommand = async (
       .command("fundTreasury <amount>")
       .description("[admin] fund faucet treasury")
       .action(async (amount: number) => {
-        const r = await txer(() => {
-          faucet.fundTreasury(UInt64.from(amount));
-        });
-        callback({ id, ...r });
-      });
-    commandFaucet
-      .command("defundTreasury")
-      .description("[admin] defund faucet treasury")
-      .action(async () => {
-        const r = await txer(() => {
-          faucet.defundTreasury();
+        const r = await txer(async () => {
+          await faucet.fundTreasury(Balance.from(amount));
         });
         callback({ id, ...r });
       });
@@ -257,8 +249,8 @@ const executeCommand = async (
     .command("transfer <to> <amount>")
     .description("send tokens to another account")
     .action(async (to: string, amount: string) => {
-      const r = await txer(() => {
-        token.transfer(PublicKey.fromBase58(to), UInt64.from(amount));
+      const r = await txer(async () => {
+        await token.transfer(PublicKey.fromBase58(to), Balance.from(amount));
       });
       callback({ id, ...r });
     });
@@ -267,16 +259,16 @@ const executeCommand = async (
     .description("get the balance of an account (default: user's account)")
     .action(async (account?: string) => {
       const address = account ? PublicKey.fromBase58(account) : publicKey;
-      const balance = await client.query.runtime.Token.balances.get(address);
+      const balance = await client.query.runtime.Token.ledger.get(address);
       callback({ id, status: "SUCCESS", data: `${balance?.toBigInt()}` });
     });
   if (opts.admin) {
     commandToken
       .command("mint <to> <amount>")
       .description("[admin] mint tokens")
-      .action(async (to: PublicKey, amount: number) => {
-        const r = await txer(() => {
-          token.mint(to, UInt64.from(amount));
+      .action(async (to: string, amount: number) => {
+        const r = await txer(async () => {
+          await token.mint(PublicKey.fromBase58(to), Balance.from(amount));
         });
         callback({ id, ...r });
       });
@@ -294,8 +286,8 @@ const executeCommand = async (
     .command("register")
     .description("register a node with this user's public key")
     .action(async () => {
-      const r = await txer(() => {
-        nodes.register();
+      const r = await txer(async () => {
+        await nodes.register();
       });
       callback({ id, ...r });
     });
@@ -306,20 +298,13 @@ const executeCommand = async (
       const amount = await client.query.runtime.Nodes.registrationStake.get();
       callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
     });
-  commandNodes
-    .command("getTreasury")
-    .description("get amount of funds in nodes treasury")
-    .action(async () => {
-      const amount = await client.query.runtime.Nodes.treasury.get();
-      callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
-    });
   if (opts.admin) {
     commandNodes
       .command("openRegistration")
       .description("[admin] open node registration")
       .action(async () => {
-        const r = await txer(() => {
-          nodes.openRegistration();
+        const r = await txer(async () => {
+          await nodes.openRegistration();
         });
         callback({ id, ...r });
       });
@@ -327,8 +312,8 @@ const executeCommand = async (
       .command("closeRegistration")
       .description("[admin] close node registration")
       .action(async () => {
-        const r = await txer(() => {
-          nodes.closeRegistration();
+        const r = await txer(async () => {
+          await nodes.closeRegistration();
         });
         callback({ id, ...r });
       });
@@ -336,26 +321,8 @@ const executeCommand = async (
       .command("setRegistrationStake <amount>")
       .description("[admin] set registration stake")
       .action(async (amount: number) => {
-        const r = await txer(() => {
-          nodes.setRegistrationStake(UInt64.from(amount));
-        });
-        callback({ id, ...r });
-      });
-    commandNodes
-      .command("fundTreasury <amount>")
-      .description("[admin] fund nodes treasury")
-      .action(async (amount: number) => {
-        const r = await txer(() => {
-          nodes.fundTreasury(UInt64.from(amount));
-        });
-        callback({ id, ...r });
-      });
-    commandNodes
-      .command("defundTreasury")
-      .description("[admin] defund nodes treasury")
-      .action(async () => {
-        const r = await txer(() => {
-          nodes.defundTreasury();
+        const r = await txer(async () => {
+          await nodes.setRegistrationStake(Balance.from(amount));
         });
         callback({ id, ...r });
       });
