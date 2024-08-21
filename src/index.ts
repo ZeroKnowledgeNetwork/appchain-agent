@@ -431,6 +431,7 @@ const server = net.createServer((socket) => {
 
           const req = decoded.value as CommandRequest;
           await executeCommand(new Command(), req, (res) => {
+            console.log(`❯ ${req.command} => ${JSON.stringify(res)}\n`);
             const out = cbor.encode(res);
             socket.write(out);
           });
