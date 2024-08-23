@@ -4,9 +4,16 @@ import * as fs from "fs/promises";
 import * as net from "net";
 import cbor from "cbor";
 import { Command, Option } from "commander";
-import { Bool, PrivateKey, PublicKey } from "o1js";
+import { Bool, CircuitString, Field, PrivateKey, PublicKey } from "o1js";
+import {
+  Balance,
+  MixDescriptor,
+  TreasuryId,
+  client,
+  getTxnState,
+  getTxnStatus,
+} from "chain";
 import { IPFSNode } from "./ipfs";
-import { Balance, TreasuryId, client, getTxnState, getTxnStatus } from "chain";
 
 type CommandRequest = {
   command: string; // command fed to the commander program
@@ -105,6 +112,7 @@ await client.start();
 const admin = client.runtime.resolve("Admin");
 const faucet = client.runtime.resolve("Faucet");
 const nodes = client.runtime.resolve("Nodes");
+const pki = client.runtime.resolve("Pki");
 const token = client.runtime.resolve("Token");
 
 // helper function to send transactions
@@ -328,6 +336,74 @@ const executeCommand = async (
       });
   }
 
+  const commandPKI = program.command("pki").description("pki commands");
+  commandPKI
+    .command("getMixDescriptor <epoch> <identifier>")
+    .description("get mix descriptor for a node at the given epoch")
+    .action(async (epoch: number, identifier: string) => {
+      if (!ipfsNode) {
+        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
+        return;
+      }
+
+      // get descriptor record from appchain
+      const did = MixDescriptor.getID(
+        Field.from(epoch),
+        CircuitString.fromString(identifier),
+      );
+      const d = await client.query.runtime.Pki.mixDescriptors.get(did);
+      if (!d) {
+        callback({ id, status: "FAILURE", data: "Descriptor not found" });
+        return;
+      }
+
+      // get data from IPFS by cid
+      const cid = d.cid.toString();
+      const descriptor = await ipfsNode.get(cid);
+
+      let debug = "";
+      debug += `DEBUG: epoch=${epoch} identifier=${identifier}\n`;
+      debug += `       did=${did}\n`;
+      debug += `       cid=${cid}`;
+      console.log(debug);
+
+      callback({ id, status: "SUCCESS", data: descriptor });
+    });
+  commandPKI
+    .command("setMixDescriptor <epoch> <identifier> [descriptor]")
+    .description("set mix descriptor for a node [descriptor = payload]")
+    .action(async (epoch: number, identifier: string, descriptor?: string) => {
+      if (!ipfsNode) {
+        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
+        return;
+      }
+
+      // use descriptor from the command if set, or use the payload
+      const _descriptor = descriptor ? descriptor : payload;
+
+      // store the descriptor data on IPFS
+      const cid = await ipfsNode?.put(_descriptor || "");
+
+      // register descriptor with appchain
+      const r = await txer(async () => {
+        await pki.setMixDescriptor(
+          new MixDescriptor({
+            epoch: Field.from(epoch),
+            identifier: CircuitString.fromString(identifier),
+            cid: CircuitString.fromString(cid),
+          }),
+        );
+      });
+
+      let debug = "";
+      debug += `DEBUG: epoch=${epoch} identifier=${identifier}\n`;
+      debug += `       cid=${cid}\n`;
+      debug += `       tx=${r.tx}`;
+      console.log(debug);
+
+      const data = r.data ? r.data : cid;
+      callback({ id, ...r, data });
+    });
   const commandAux = program
     .command("_")
     .description("Additional commands not part of appchain runtime");
@@ -378,7 +454,7 @@ if (opts.ipfs) {
 if (!opts.listen) {
   const command = process.argv.slice(2).join(" ");
   await executeCommand(program, { command, id: 0 }, (res) => {
-    console.log(res.data);
+    console.log(res);
   });
   if (ipfsNode) await ipfsNode.stop();
   process.exit(0);
