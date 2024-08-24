@@ -4,7 +4,14 @@ import * as fs from "fs/promises";
 import * as net from "net";
 import cbor from "cbor";
 import { Command, Option } from "commander";
-import { Bool, CircuitString, Field, PrivateKey, PublicKey } from "o1js";
+import {
+  Bool,
+  CircuitString,
+  Field,
+  Poseidon,
+  PrivateKey,
+  PublicKey,
+} from "o1js";
 import {
   Balance,
   MixDescriptor,
@@ -339,7 +346,7 @@ const executeCommand = async (
   const commandPKI = program.command("pki").description("pki commands");
   commandPKI
     .command("getMixDescriptor <epoch> <identifier>")
-    .description("get mix descriptor for a node at the given epoch")
+    .description("get mix descriptor for the given epoch and identifier")
     .action(async (epoch: number, identifier: string) => {
       if (!ipfsNode) {
         callback({ id, status: "FAILURE", data: "IPFSNode not started" });
@@ -368,6 +375,56 @@ const executeCommand = async (
       console.log(debug);
 
       callback({ id, status: "SUCCESS", data: descriptor });
+    });
+  commandPKI
+    .command("getMixDescriptorByIndex <epoch> <index>")
+    .description("get mix descriptor for the given epoch and index")
+    .action(async (epoch: number, index: number) => {
+      if (!ipfsNode) {
+        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
+        return;
+      }
+
+      // get descriptor identifier from appchain
+      const did = await client.query.runtime.Pki.mixDescriptorDirectory.get(
+        Poseidon.hash([Field.from(epoch), Field.from(index)]),
+      );
+      if (!did) {
+        callback({
+          id,
+          status: "FAILURE",
+          data: "Descriptor not found in directory",
+        });
+        return;
+      }
+
+      // get descriptor from appchain
+      const d = await client.query.runtime.Pki.mixDescriptors.get(did);
+      if (!d) {
+        callback({ id, status: "FAILURE", data: "Descriptor not found" });
+        return;
+      }
+
+      // get data from IPFS by cid
+      const cid = d.cid.toString();
+      const descriptor = await ipfsNode.get(cid);
+
+      let debug = "";
+      debug += `DEBUG: epoch=${epoch} identifier=${d.identifier}\n`;
+      debug += `       did=${did}\n`;
+      debug += `       cid=${cid}`;
+      console.log(debug);
+
+      callback({ id, status: "SUCCESS", data: descriptor });
+    });
+  commandPKI
+    .command("getMixDescriptorCounter <epoch>")
+    .description("get mix descriptor counter for the given epoch")
+    .action(async (epoch: number) => {
+      const counter = await client.query.runtime.Pki.mixDescriptorCounter.get(
+        Field.from(epoch),
+      );
+      callback({ id, status: "SUCCESS", data: `${counter?.toBigInt()}` });
     });
   commandPKI
     .command("setMixDescriptor <epoch> <identifier> [descriptor]")
