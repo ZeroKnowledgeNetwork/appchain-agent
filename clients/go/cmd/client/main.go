@@ -9,7 +9,19 @@ import (
 )
 
 // This is an example appchain agent client that uses the chainbridge go package
-// to interact with the appchain.
+// to interact with the appchain and perform some tests.
+
+var chBridge *chainbridge.ChainBridge
+
+// Sends a command to the chainbridge and logs the response or any errors.
+func sendCommand(command string, payload []byte) {
+	response, err := chBridge.Command(command, payload)
+	if err != nil {
+		log.Printf("Error: %v", err)
+	} else {
+		log.Printf("Response (%s): %+v\n", command, response)
+	}
+}
 
 func main() {
 	// Either launch the agent with the command and its arguments
@@ -38,14 +50,6 @@ func main() {
 
 	defer chBridge.Stop()
 
-	sendCommand := func(command string, payload []byte) {
-		response, err := chBridge.Command(command, payload)
-		if err != nil {
-			log.Printf("Error: %v", err)
-		} else {
-			log.Printf("Response (%s): %+v\n", command, response)
-		}
-	}
 
 	sendCommand("token getBalance", nil)
 	sendCommand("faucet getEnabled", nil)
