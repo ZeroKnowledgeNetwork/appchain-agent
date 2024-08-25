@@ -496,8 +496,9 @@ if (opts.ipfs) {
 
 if (!opts.listen) {
   const command = process.argv.slice(2).join(" ");
+  const regex = /^Usage: /;
   await executeCommand(program, { command, id: 0 }, (res) => {
-    console.log(res);
+    regex.test(res.data) ? console.log(res.data) : console.log(res);
   });
   if (ipfsNode) await ipfsNode.stop();
   process.exit(0);
