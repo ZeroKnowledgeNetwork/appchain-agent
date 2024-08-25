@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/0KnowledgeNetwork/appchain-agent/clients/go/chainbridge"
+	"github.com/fxamacker/cbor/v2"
 )
 
 // This is an example appchain agent client that uses the chainbridge go package
@@ -21,6 +22,61 @@ func sendCommand(command string, payload []byte) {
 	} else {
 		log.Printf("Response (%s): %+v\n", command, response)
 	}
+}
+
+// Test round-trip of CBOR (en|de)coding with IPFS-(re)stored binary data.
+func testBinaryData() {
+	// some arbitrary struct
+	type TestData struct {
+		Status string `cbor:"status"`
+		Data   string `cbor:"data"`
+		A      int    `cbor:"a,omitempty"`
+		B      string `cbor:"b,omitempty"`
+	}
+
+	td := TestData{
+		Status: "ok",
+		Data:   "yo!",
+		A:      101,
+		B:      "0x8888",
+	}
+
+	log.Printf("Data in: %+v", td)
+	enc, err := cbor.Marshal(td)
+	if err != nil {
+		log.Printf("CBOR Error: %v", err)
+	}
+	log.Printf("Encoded data in: %v (%T)", enc, enc)
+
+	// send encoded data as payload to be stored in IPFS and indexed in appchain
+	sendCommand("pki setMixDescriptor 1000 node-5000", enc)
+
+	// retrieve the stored data
+	command := "pki getMixDescriptor 1000 node-5000"
+	response, err := chBridge.Command(command, nil)
+	if err != nil {
+		log.Printf("Error: %v", err)
+	} else {
+		log.Printf("Response (%s): %+v\n", command, response)
+	}
+	log.Printf("Encoded data out: %v (%T)", response.Data, response.Data)
+
+	// binary data is returned as a CBOR tag
+	tag, ok := response.Data.(cbor.Tag)
+	if ok {
+		log.Println("CBOR Tag Number:", tag.Number)
+		log.Println("CBOR Tag Content:", tag.Content)
+	} else {
+		log.Println("Error: Unexpected type:", response.Data)
+	}
+
+	// decode the CBOR tag content
+	var td2 TestData
+	err = cbor.Unmarshal(tag.Content.([]byte), &td2)
+	if err != nil {
+		log.Printf("CBOR Error: %v", err)
+	}
+	log.Printf("Data out: %+v", td2)
 }
 
 func main() {
@@ -50,10 +106,10 @@ func main() {
 
 	defer chBridge.Stop()
 
+	sendCommand("admin getAdmin", nil)
+	sendCommand("admin setAdmin", nil)
 
 	sendCommand("token getBalance", nil)
-	sendCommand("faucet getEnabled", nil)
-	sendCommand("faucet setEnabled 0", nil)
 	sendCommand("faucet getEnabled", nil)
 	sendCommand("faucet setEnabled 1", nil)
 	sendCommand("faucet getEnabled", nil)
@@ -68,4 +124,6 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
+
+	testBinaryData()
 }
