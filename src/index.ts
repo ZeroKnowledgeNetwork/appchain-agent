@@ -171,11 +171,12 @@ const executeCommand = async (
         callback({ id, status: "SUCCESS", data: a?.toBase58() });
       });
     commandAdmin
-      .command("setAdmin <admin>")
-      .description("[admin] set the chain admin")
-      .action(async (newAdmin: string) => {
+      .command("setAdmin [key]")
+      .description("[admin] set the chain admin (default: user's key)")
+      .action(async (key?: string) => {
+        const newAdmin = key ? PublicKey.fromBase58(key) : publicKey;
         const r = await txer(async () => {
-          await admin.setAdmin(PublicKey.fromBase58(newAdmin));
+          await admin.setAdmin(newAdmin);
         });
         callback({ id, ...r });
       });
