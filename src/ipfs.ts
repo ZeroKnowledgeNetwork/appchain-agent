@@ -32,6 +32,9 @@ export class IPFSNode {
     this.datastore = new FsDatastore(path.join(opts.dataPath, "data"));
   }
 
+  /**
+   * Start the IPFS node
+   */
   public async start() {
     // create a Helia node
     this.helia = await createHelia({
@@ -72,11 +75,20 @@ export class IPFSNode {
     this.fs = unixfs(this.helia);
   }
 
+  /**
+   * Stop the IPFS node
+   */
   public async stop() {
     await stop(this.helia);
-    // console.log("IPFSNode stopped");
+    console.log("IPFSNode stopped");
   }
 
+  /**
+   * Store data in IPFS.
+   *
+   * @param data bytes (Uint8Array) to be stored in IPFS
+   * @returns CID of the stored data
+   */
   public async putBytes(data: Uint8Array): Promise<string> {
     if (!this.fs) throw new Error("IPFSNode not started");
 
@@ -88,6 +100,12 @@ export class IPFSNode {
     return cid.toString();
   }
 
+  /**
+   * Retrieve data from IPFS.
+   *
+   * @param cid CID of the data to be retrieved
+   * @returns bytes (Uint8Array) data stored in IPFS
+   */
   public async getBytes(cid: string): Promise<Uint8Array> {
     if (!this.fs) throw new Error("IPFSNode not started");
 
@@ -113,11 +131,21 @@ export class IPFSNode {
     return result;
   }
 
+  /**
+   * @param data string to be stored in IPFS
+   * @returns CID of the stored data
+   * @note lossy binary data conversion
+   */
   public async putString(data: string): Promise<string> {
     const bytes = new TextEncoder().encode(data);
     return await this.putBytes(bytes);
   }
 
+  /**
+   * @param cid CID of the data to be retrieved
+   * @returns string data from IPFS
+   * @note lossy binary data conversion
+   */
   public async getString(cid: string): Promise<string> {
     const bytes = await this.getBytes(cid);
     return new TextDecoder().decode(bytes);
