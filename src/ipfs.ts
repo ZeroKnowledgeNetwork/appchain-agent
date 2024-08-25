@@ -77,36 +77,49 @@ export class IPFSNode {
     // console.log("IPFSNode stopped");
   }
 
-  public async put(data: string) {
+  public async putBytes(data: Uint8Array): Promise<string> {
     if (!this.fs) throw new Error("IPFSNode not started");
 
-    // this TextEncoder will turn strings into Uint8Arrays
-    const encoder = new TextEncoder();
+    // add bytes to the helia node and receive a unique content identifier
+    const cid = await this.fs.addBytes(data);
 
-    // add the bytes to your node and receive a unique content identifier
-    const cid = await this.fs.addBytes(encoder.encode(data));
-
-    console.log("IPFSNode put file:", cid.toString());
+    console.log("IPFSNode put", cid.toString());
 
     return cid.toString();
   }
 
-  public async get(cid: string) {
+  public async getBytes(cid: string): Promise<Uint8Array> {
     if (!this.fs) throw new Error("IPFSNode not started");
 
-    // this decoder will turn Uint8Arrays into strings
-    const decoder = new TextDecoder();
+    const chunks: Uint8Array[] = [];
 
-    let text = "";
     // read the file from the blockstore using the Helia node
     for await (const chunk of this.fs.cat(CID.parse(cid))) {
-      text += decoder.decode(chunk, {
-        stream: true,
-      });
+      chunks.push(chunk);
     }
 
-    console.log("IPFSNode get file:", cid);
+    // Concatenate all chunks into a single Uint8Array
+    const result = new Uint8Array(
+      chunks.reduce((acc, chunk) => acc + chunk.length, 0),
+    );
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
 
-    return text;
+    console.log("IPFSNode get", cid);
+
+    return result;
+  }
+
+  public async putString(data: string): Promise<string> {
+    const bytes = new TextEncoder().encode(data);
+    return await this.putBytes(bytes);
+  }
+
+  public async getString(cid: string): Promise<string> {
+    const bytes = await this.getBytes(cid);
+    return new TextDecoder().decode(bytes);
   }
 }

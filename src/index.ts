@@ -24,7 +24,7 @@ import { IPFSNode } from "./ipfs";
 
 type CommandRequest = {
   command: string; // command fed to the commander program
-  payload?: string; // additional binary data unsuitable for transmission within `command` string
+  payload?: Uint8Array; // additional binary data unsuitable for transmission within `command` string
   id?: number; // optional id to echo within the corresponding response
 };
 
@@ -362,7 +362,7 @@ const executeCommand = async (
 
     // get data from IPFS by cid
     const cid = d.cid.toString();
-    const descriptor = await ipfsNode.get(cid);
+    const descriptor = await ipfsNode.getBytes(cid);
 
     let debug = "";
     debug += `DEBUG: epoch=${d.epoch} identifier=${d.identifier}\n`;
@@ -411,19 +411,21 @@ const executeCommand = async (
       callback({ id, status: "SUCCESS", data: `${counter?.toBigInt()}` });
     });
   commandPKI
-    .command("setMixDescriptor <epoch> <identifier> [descriptor]")
-    .description("set mix descriptor for a node [descriptor = payload]")
-    .action(async (epoch: number, identifier: string, descriptor?: string) => {
+    .command("setMixDescriptor <epoch> <identifier>")
+    .description("[listen] set mix descriptor <descriptor := payload>")
+    .action(async (epoch: number, identifier: string) => {
       if (!ipfsNode) {
         callback({ id, status: "FAILURE", data: "IPFSNode not started" });
         return;
       }
+      if (!payload) {
+        callback({ id, status: "FAILURE", data: "Payload undefined" });
+        return;
+      }
 
-      // use descriptor from the command if set, or use the payload
-      const _descriptor = descriptor ? descriptor : payload;
-
+      // Note: The payload is used for lossless encoding of binary data.
       // store the descriptor data on IPFS
-      const cid = await ipfsNode?.put(_descriptor || "");
+      const cid = await ipfsNode.putBytes(payload);
 
       // register descriptor with appchain
       const r = await txer(async () => {
