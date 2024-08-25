@@ -3,7 +3,7 @@ module github.com/0KnowledgeNetwork/appchain-agent/clients/go
 go 1.22.3
 
 require (
-	github.com/fxamacker/cbor/v2 v2.7.0
+	github.com/fxamacker/cbor/v2 v2.6.0
 	github.com/lesismal/nbio v1.5.9
 )
 
