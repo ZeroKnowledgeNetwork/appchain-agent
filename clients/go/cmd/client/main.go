@@ -13,7 +13,7 @@ import (
 
 func main() {
 	// Either launch the agent with the command and its arguments
-	chainbridge := chainbridge.NewChainBridge(
+	chBridge := chainbridge.NewChainBridge(
 		"pnpm", "run", "agent",
 		"--admin",
 		"--key", "/tmp/admin.key",
@@ -21,25 +21,25 @@ func main() {
 		"--socket-format", "cbor",
 	)
 	// Or simply connect to the existing socket file
-	// chainbridge := chainbridge.NewChainBridge("/tmp/appchain.sock")
+	// chBridge := chainbridge.NewChainBridge("/tmp/appchain.sock")
 
 	// Optionally set an error handler for errors not returned by functions
-	chainbridge.SetErrorHandler(func(err error) {
+	chBridge.SetErrorHandler(func(err error) {
 		log.Printf("Error: %v", err)
 	})
 
-	chainbridge.SetLogHandler(func(message string) {
+	chBridge.SetLogHandler(func(message string) {
 		log.Printf("chainbridge: %s", message)
 	})
 
-	if err := chainbridge.Start(); err != nil {
+	if err := chBridge.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	defer chainbridge.Stop()
+	defer chBridge.Stop()
 
 	sendCommand := func(command string, payload []byte) {
-		response, err := chainbridge.Command(command, payload)
+		response, err := chBridge.Command(command, payload)
 		if err != nil {
 			log.Printf("Error: %v", err)
 		} else {
