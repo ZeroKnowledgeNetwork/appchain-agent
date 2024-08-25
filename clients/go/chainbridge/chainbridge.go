@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -259,4 +260,38 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 		c.responses.Delete(req.ID)
 		return response, fmt.Errorf("Timeout waiting for response to request ID=%d", req.ID)
 	}
+}
+
+func (c *ChainBridge) GetDataBytes(response CommandResponse) ([]byte, error) {
+	// Check if the data is a CBOR tag
+	tag, ok := response.Data.(cbor.Tag)
+	if !ok {
+		return nil, fmt.Errorf("unexpected data type: %T, expected cbor.Tag", response.Data)
+	}
+
+	// Ensure the content is of type []byte
+	bytes, ok := tag.Content.([]byte)
+	if !ok {
+		return nil, fmt.Errorf("unexpected tag content type: %T, number: %d, expected []byte", tag.Content, tag.Number)
+	}
+
+	return bytes, nil
+}
+
+func (c *ChainBridge) GetDataUInt(response CommandResponse) (uint64, error) {
+	str, ok := response.Data.(string)
+	if !ok {
+		return 0, fmt.Errorf("unexpected data type: %T, expected string", response.Data)
+	}
+
+	if str == "undefined" {
+		return 0, nil
+	}
+
+	num, err := strconv.ParseUint(str, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse uint64: %w", err)
+	}
+
+	return num, nil
 }

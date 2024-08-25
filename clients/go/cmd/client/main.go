@@ -55,28 +55,37 @@ func testBinaryData() {
 	command := "pki getMixDescriptor 1000 node-5000"
 	response, err := chBridge.Command(command, nil)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		log.Printf("ChainBridge command error: %v", err)
 	} else {
 		log.Printf("Response (%s): %+v\n", command, response)
 	}
 	log.Printf("Encoded data out: %v (%T)", response.Data, response.Data)
 
-	// binary data is returned as a CBOR tag
-	tag, ok := response.Data.(cbor.Tag)
-	if ok {
-		log.Println("CBOR Tag Number:", tag.Number)
-		log.Println("CBOR Tag Content:", tag.Content)
-	} else {
-		log.Println("Error: Unexpected type:", response.Data)
+	data, err := chBridge.GetDataBytes(response)
+	if err != nil {
+		log.Printf("ChainBridge data error: %v", err)
 	}
 
-	// decode the CBOR tag content
+	// decode the CBOR data
 	var td2 TestData
-	err = cbor.Unmarshal(tag.Content.([]byte), &td2)
+	err = cbor.Unmarshal(data, &td2)
 	if err != nil {
 		log.Printf("CBOR Error: %v", err)
 	}
 	log.Printf("Data out: %+v", td2)
+}
+
+func getGenesisEpoch() uint64 {
+	command := "pki getGenesisEpoch"
+	response, err := chBridge.Command(command, nil)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	}
+	genesisEpoch, err := chBridge.GetDataUInt(response)
+	if err != nil {
+		log.Printf("ChainBridge data error: %v", err)
+	}
+	return genesisEpoch
 }
 
 func main() {
@@ -125,5 +134,7 @@ func main() {
 	}
 	wg.Wait()
 
+	log.Printf("genesisEpoch: %d", getGenesisEpoch())
 	testBinaryData()
+	log.Printf("genesisEpoch: %d", getGenesisEpoch())
 }
