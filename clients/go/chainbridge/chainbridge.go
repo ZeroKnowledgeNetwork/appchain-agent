@@ -44,7 +44,8 @@ type CommandRequest struct {
 
 type CommandResponse struct {
 	Status string      `cbor:"status"`
-	Data   interface{} `cbor:"data"`
+	Data   interface{} `cbor:"data,omitempty"`
+	Error  string      `cbor:"error,omitempty"`
 	ID     int         `cbor:"id,omitempty"`
 	TX     string      `cbor:"tx,omitempty"`
 }
