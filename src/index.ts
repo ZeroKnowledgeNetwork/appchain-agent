@@ -216,7 +216,7 @@ const executeCommand = async (
     .description("get faucet drip amount")
     .action(async () => {
       const amount = await client.query.runtime.Faucet.dripAmount.get();
-      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: amount?.toString() });
     });
   commandFaucet
     .command("getTreasury")
@@ -225,7 +225,7 @@ const executeCommand = async (
       const treasuryId = client.runtime.config.Faucet!.treasuryId;
       const treasuryKey = TreasuryId.toPublicKey(treasuryId);
       const amount = await client.query.runtime.Token.ledger.get(treasuryKey);
-      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: amount?.toString() });
     });
   if (opts.admin) {
     commandFaucet
@@ -273,7 +273,7 @@ const executeCommand = async (
     .action(async (account?: string) => {
       const address = account ? PublicKey.fromBase58(account) : publicKey;
       const balance = await client.query.runtime.Token.ledger.get(address);
-      callback({ id, status: "SUCCESS", data: balance?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: balance?.toString() });
     });
   if (opts.admin) {
     commandToken
@@ -309,7 +309,7 @@ const executeCommand = async (
     .description("get amount of tokens required to stake for registration")
     .action(async () => {
       const amount = await client.query.runtime.Nodes.registrationStake.get();
-      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: amount?.toString() });
     });
   if (opts.admin) {
     commandNodes
@@ -347,7 +347,7 @@ const executeCommand = async (
     .description("get the genesis epoch")
     .action(async () => {
       const e = await client.query.runtime.Pki.genesisEpoch.get();
-      callback({ id, status: "SUCCESS", data: e?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: e?.toString() });
     });
   commandPKI
     .command("getDocument <epoch>")
@@ -419,7 +419,7 @@ const executeCommand = async (
       const counter = await client.query.runtime.Pki.mixDescriptorCounter.get(
         Field.from(epoch),
       );
-      callback({ id, status: "SUCCESS", data: counter?.toBigInt() });
+      callback({ id, status: "SUCCESS", data: counter?.toString() });
     });
   commandPKI
     .command("setDocument <epoch>")
