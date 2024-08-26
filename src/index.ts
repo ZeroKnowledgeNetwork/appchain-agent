@@ -36,6 +36,11 @@ type CommandResponse = {
   tx?: string; // the hash of the transaction, if it had a transaction
 };
 
+// pragmatic helpers to avoid typos
+const SUCCESS = "SUCCESS";
+const FAILURE = "FAILURE";
+const PENDING = "PENDING";
+
 // Reads and returns a private key from a file.
 // If the file does not exist, generate a new private key, save it to the file, then return it.
 const getPrivateKeyFromFile = async (path: string): Promise<PrivateKey> => {
@@ -141,13 +146,13 @@ const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
     );
     return {
       status,
-      data: status !== "FAILURE" ? statusMessage : undefined,
-      error: status === "FAILURE" ? statusMessage : undefined,
+      data: status !== FAILURE ? statusMessage : undefined,
+      error: status === FAILURE ? statusMessage : undefined,
       tx: tx.transaction.hash().toString(),
     };
   }
 
-  return { status: "PENDING" };
+  return { status: PENDING };
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -163,9 +168,9 @@ const executeCommand = async (
 
   // common responses
   const responses: Record<string, CommandResponse> = {
-    IPFS_NOT_STARTED: { id, status: "FAILURE", error: "IPFS node not started" },
-    PAYLOAD_UNDEFINED: { id, status: "FAILURE", error: "Payload undefined" },
-    RECORD_NOT_FOUND: { id, status: "SUCCESS", data: undefined },
+    IPFS_NOT_STARTED: { id, status: FAILURE, error: "IPFS node not started" },
+    PAYLOAD_UNDEFINED: { id, status: FAILURE, error: "Payload undefined" },
+    RECORD_NOT_FOUND: { id, status: SUCCESS, data: undefined },
   };
 
   if (opts.admin) {
@@ -177,7 +182,7 @@ const executeCommand = async (
       .description("[admin] get the chain admin")
       .action(async () => {
         const a = await client.query.runtime.Admin.admin.get();
-        callback({ id, status: "SUCCESS", data: a?.toBase58() });
+        callback({ id, status: SUCCESS, data: a?.toBase58() });
       });
     commandAdmin
       .command("setAdmin [key]")
@@ -209,14 +214,14 @@ const executeCommand = async (
     .description("get faucet enabled status")
     .action(async () => {
       const enabled = await client.query.runtime.Faucet.enabled.get();
-      callback({ id, status: "SUCCESS", data: enabled?.toBoolean() });
+      callback({ id, status: SUCCESS, data: enabled?.toBoolean() });
     });
   commandFaucet
     .command("getDripAmount")
     .description("get faucet drip amount")
     .action(async () => {
       const amount = await client.query.runtime.Faucet.dripAmount.get();
-      callback({ id, status: "SUCCESS", data: amount?.toString() });
+      callback({ id, status: SUCCESS, data: amount?.toString() });
     });
   commandFaucet
     .command("getTreasury")
@@ -225,7 +230,7 @@ const executeCommand = async (
       const treasuryId = client.runtime.config.Faucet!.treasuryId;
       const treasuryKey = TreasuryId.toPublicKey(treasuryId);
       const amount = await client.query.runtime.Token.ledger.get(treasuryKey);
-      callback({ id, status: "SUCCESS", data: amount?.toString() });
+      callback({ id, status: SUCCESS, data: amount?.toString() });
     });
   if (opts.admin) {
     commandFaucet
@@ -273,7 +278,7 @@ const executeCommand = async (
     .action(async (account?: string) => {
       const address = account ? PublicKey.fromBase58(account) : publicKey;
       const balance = await client.query.runtime.Token.ledger.get(address);
-      callback({ id, status: "SUCCESS", data: balance?.toString() });
+      callback({ id, status: SUCCESS, data: balance?.toString() });
     });
   if (opts.admin) {
     commandToken
@@ -293,7 +298,7 @@ const executeCommand = async (
     .description("get node registration open status")
     .action(async () => {
       const open = await client.query.runtime.Nodes.registrationOpen.get();
-      callback({ id, status: "SUCCESS", data: open?.toBoolean() });
+      callback({ id, status: SUCCESS, data: open?.toBoolean() });
     });
   commandNodes
     .command("register")
@@ -309,7 +314,7 @@ const executeCommand = async (
     .description("get amount of tokens required to stake for registration")
     .action(async () => {
       const amount = await client.query.runtime.Nodes.registrationStake.get();
-      callback({ id, status: "SUCCESS", data: amount?.toString() });
+      callback({ id, status: SUCCESS, data: amount?.toString() });
     });
   if (opts.admin) {
     commandNodes
@@ -347,7 +352,7 @@ const executeCommand = async (
     .description("get the genesis epoch")
     .action(async () => {
       const e = await client.query.runtime.Pki.genesisEpoch.get();
-      callback({ id, status: "SUCCESS", data: e?.toString() });
+      callback({ id, status: SUCCESS, data: e?.toString() });
     });
   commandPKI
     .command("getDocument <epoch>")
@@ -369,7 +374,7 @@ const executeCommand = async (
       debug += `       cid=${cid}`;
       console.log(debug);
 
-      callback({ id, status: "SUCCESS", data });
+      callback({ id, status: SUCCESS, data });
     });
   // utility: given a mix descriptor identifier,
   // get and callback the descriptor with data
@@ -390,7 +395,7 @@ const executeCommand = async (
     debug += `       cid=${cid}`;
     console.log(debug);
 
-    callback({ id, status: "SUCCESS", data });
+    callback({ id, status: SUCCESS, data });
   };
   commandPKI
     .command("getMixDescriptor <epoch> <identifier>")
@@ -419,7 +424,7 @@ const executeCommand = async (
       const counter = await client.query.runtime.Pki.mixDescriptorCounter.get(
         Field.from(epoch),
       );
-      callback({ id, status: "SUCCESS", data: counter?.toString() });
+      callback({ id, status: SUCCESS, data: counter?.toString() });
     });
   commandPKI
     .command("setDocument <epoch>")
@@ -488,19 +493,19 @@ const executeCommand = async (
         publicKey: key.toPublicKey().toBase58(),
         privateKey: key.toBase58(),
       };
-      callback({ id, status: "SUCCESS", data });
+      callback({ id, status: SUCCESS, data });
     });
   commandAux
     .command("getTxnState <hash>")
     .description("get the state of a transaction")
     .action(async (hash: string) => {
       const data = await getTxnState(hash);
-      return callback({ id, status: "SUCCESS", data });
+      return callback({ id, status: SUCCESS, data });
     });
 
   program.configureOutput({
-    writeOut: (data) => callback({ id, status: "SUCCESS", data: data.trim() }),
-    writeErr: (data) => callback({ id, status: "FAILURE", error: data.trim() }),
+    writeOut: (data) => callback({ id, status: SUCCESS, data: data.trim() }),
+    writeErr: (data) => callback({ id, status: FAILURE, error: data.trim() }),
   });
 
   try {
@@ -508,7 +513,7 @@ const executeCommand = async (
   } catch (err: any) {
     // ignore "commander exit" to avoid dup output from writeErr
     if (err.message === "commander exit") return;
-    callback({ id, status: "FAILURE", error: err.message });
+    callback({ id, status: FAILURE, error: err.message });
   }
 };
 
