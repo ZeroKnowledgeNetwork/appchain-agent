@@ -30,7 +30,8 @@ type CommandRequest = {
 
 type CommandResponse = {
   status: "SUCCESS" | "FAILURE" | "PENDING";
-  data: any;
+  data?: any;
+  error?: string; // error message, if status is "FAILURE"
   id?: number; // the id from the corresponding request, if it had one
   tx?: string; // the hash of the transaction, if it had a transaction
 };
@@ -130,7 +131,7 @@ const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
   await tx.send();
 
   if (tx.transaction) {
-    const status = await getTxnStatus(
+    const { status, statusMessage } = await getTxnStatus(
       tx.transaction,
       () => {
         console.log("⏳ waiting for tx to be confirmed...");
@@ -139,13 +140,14 @@ const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
       parseInt(opts.txStatusRetries),
     );
     return {
-      status: status.status,
-      data: status.statusMessage,
+      status,
+      data: status !== "FAILURE" ? statusMessage : undefined,
+      error: status === "FAILURE" ? statusMessage : undefined,
       tx: tx.transaction.hash().toString(),
     };
   }
 
-  return { status: "PENDING", data: "Transaction unknown status" };
+  return { status: "PENDING" };
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -158,6 +160,13 @@ const executeCommand = async (
   callback: (response: CommandResponse) => void,
 ) => {
   const { command, payload, id } = request;
+
+  // common responses
+  const responses: Record<string, CommandResponse> = {
+    IPFS_NOT_STARTED: { id, status: "FAILURE", error: "IPFS node not started" },
+    PAYLOAD_UNDEFINED: { id, status: "FAILURE", error: "Payload undefined" },
+    RECORD_NOT_FOUND: { id, status: "SUCCESS", data: undefined },
+  };
 
   if (opts.admin) {
     const commandAdmin = program
@@ -207,7 +216,7 @@ const executeCommand = async (
     .description("get faucet drip amount")
     .action(async () => {
       const amount = await client.query.runtime.Faucet.dripAmount.get();
-      callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
     });
   commandFaucet
     .command("getTreasury")
@@ -216,7 +225,7 @@ const executeCommand = async (
       const treasuryId = client.runtime.config.Faucet!.treasuryId;
       const treasuryKey = TreasuryId.toPublicKey(treasuryId);
       const amount = await client.query.runtime.Token.ledger.get(treasuryKey);
-      callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
     });
   if (opts.admin) {
     commandFaucet
@@ -264,7 +273,7 @@ const executeCommand = async (
     .action(async (account?: string) => {
       const address = account ? PublicKey.fromBase58(account) : publicKey;
       const balance = await client.query.runtime.Token.ledger.get(address);
-      callback({ id, status: "SUCCESS", data: `${balance?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: balance?.toBigInt() });
     });
   if (opts.admin) {
     commandToken
@@ -300,7 +309,7 @@ const executeCommand = async (
     .description("get amount of tokens required to stake for registration")
     .action(async () => {
       const amount = await client.query.runtime.Nodes.registrationStake.get();
-      callback({ id, status: "SUCCESS", data: `${amount?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: amount?.toBigInt() });
     });
   if (opts.admin) {
     commandNodes
@@ -338,27 +347,21 @@ const executeCommand = async (
     .description("get the genesis epoch")
     .action(async () => {
       const e = await client.query.runtime.Pki.genesisEpoch.get();
-      callback({ id, status: "SUCCESS", data: `${e?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: e?.toBigInt() });
     });
   commandPKI
     .command("getDocument <epoch>")
     .description("get PKI document for the given epoch")
     .action(async (epoch: number) => {
-      if (!ipfsNode) {
-        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
-        return;
-      }
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
-      const _cid = await client.query.runtime.Pki.documents.get(
+      const cid_ = await client.query.runtime.Pki.documents.get(
         Field.from(epoch),
       );
-      if (!_cid) {
-        callback({ id, status: "FAILURE", data: "Document not found" });
-        return;
-      }
+      if (!cid_) return callback(responses.RECORD_NOT_FOUND);
 
       // get data from IPFS by cid
-      const cid = _cid.toString();
+      const cid = cid_.toString();
       const data = await ipfsNode.getBytes(cid);
 
       let debug = "";
@@ -371,17 +374,11 @@ const executeCommand = async (
   // utility: given a mix descriptor identifier,
   // get and callback the descriptor with data
   const pkiGetMixDescriptor = async (did: Field) => {
-    if (!ipfsNode) {
-      callback({ id, status: "FAILURE", data: "IPFSNode not started" });
-      return;
-    }
+    if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
     // get descriptor from appchain
     const d = await client.query.runtime.Pki.mixDescriptors.get(did);
-    if (!d) {
-      callback({ id, status: "FAILURE", data: "Descriptor not found" });
-      return;
-    }
+    if (!d) return callback(responses.RECORD_NOT_FOUND);
 
     // get data from IPFS by cid
     const cid = d.cid.toString();
@@ -399,7 +396,6 @@ const executeCommand = async (
     .command("getMixDescriptor <epoch> <identifier>")
     .description("get mix descriptor for the given epoch and identifier")
     .action(async (epoch: number, identifier: string) => {
-      // get descriptor identifier from appchain
       const did = MixDescriptor.getID(
         Field.from(epoch),
         CircuitString.fromString(identifier),
@@ -410,18 +406,10 @@ const executeCommand = async (
     .command("getMixDescriptorByIndex <epoch> <index>")
     .description("get mix descriptor for the given epoch and index")
     .action(async (epoch: number, index: number) => {
-      // get descriptor identifier from appchain
       const did = await client.query.runtime.Pki.mixDescriptorDirectory.get(
         Poseidon.hash([Field.from(epoch), Field.from(index)]),
       );
-      if (!did) {
-        callback({
-          id,
-          status: "FAILURE",
-          data: "Descriptor not found in directory",
-        });
-        return;
-      }
+      if (!did) return callback(responses.RECORD_NOT_FOUND);
       return await pkiGetMixDescriptor(did);
     });
   commandPKI
@@ -431,20 +419,14 @@ const executeCommand = async (
       const counter = await client.query.runtime.Pki.mixDescriptorCounter.get(
         Field.from(epoch),
       );
-      callback({ id, status: "SUCCESS", data: `${counter?.toBigInt()}` });
+      callback({ id, status: "SUCCESS", data: counter?.toBigInt() });
     });
   commandPKI
     .command("setDocument <epoch>")
     .description("[listen] set pki document <document := payload>")
     .action(async (epoch: number) => {
-      if (!ipfsNode) {
-        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
-        return;
-      }
-      if (!payload) {
-        callback({ id, status: "FAILURE", data: "Payload undefined" });
-        return;
-      }
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+      if (!payload) return callback(responses.PAYLOAD_UNDEFINED);
 
       // Note: The payload is used for lossless encoding of binary data.
       // store the doc data on IPFS
@@ -461,21 +443,14 @@ const executeCommand = async (
       debug += `       tx=${r.tx}`;
       console.log(debug);
 
-      const data = r.data ? r.data : cid;
-      callback({ id, ...r, data });
+      callback({ id, ...r });
     });
   commandPKI
     .command("setMixDescriptor <epoch> <identifier>")
     .description("[listen] set mix descriptor <descriptor := payload>")
     .action(async (epoch: number, identifier: string) => {
-      if (!ipfsNode) {
-        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
-        return;
-      }
-      if (!payload) {
-        callback({ id, status: "FAILURE", data: "Payload undefined" });
-        return;
-      }
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+      if (!payload) return callback(responses.PAYLOAD_UNDEFINED);
 
       // Note: The payload is used for lossless encoding of binary data.
       // store the descriptor data on IPFS
@@ -498,8 +473,7 @@ const executeCommand = async (
       debug += `       tx=${r.tx}`;
       console.log(debug);
 
-      const data = r.data ? r.data : cid;
-      callback({ id, ...r, data });
+      callback({ id, ...r });
     });
 
   const commandAux = program
@@ -520,21 +494,13 @@ const executeCommand = async (
     .command("getTxnState <hash>")
     .description("get the state of a transaction")
     .action(async (hash: string) => {
-      try {
-        const state = await getTxnState(hash);
-        return callback({ id, status: "SUCCESS", data: state });
-      } catch (err: any) {
-        return callback({
-          id,
-          status: "FAILURE",
-          data: `Error: ${err.message}`,
-        });
-      }
+      const data = await getTxnState(hash);
+      return callback({ id, status: "SUCCESS", data });
     });
 
   program.configureOutput({
     writeOut: (data) => callback({ id, status: "SUCCESS", data: data.trim() }),
-    writeErr: (data) => callback({ id, status: "FAILURE", data: data.trim() }),
+    writeErr: (data) => callback({ id, status: "FAILURE", error: data.trim() }),
   });
 
   try {
@@ -542,7 +508,7 @@ const executeCommand = async (
   } catch (err: any) {
     // ignore "commander exit" to avoid dup output from writeErr
     if (err.message === "commander exit") return;
-    callback({ id, status: "FAILURE", data: err.message });
+    callback({ id, status: "FAILURE", error: err.message });
   }
 };
 
