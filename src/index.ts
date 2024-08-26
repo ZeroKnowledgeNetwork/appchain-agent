@@ -182,18 +182,6 @@ const executeCommand = async (
       });
   }
 
-  program
-    .command("generateKey")
-    .description("generate a new public/private key pair")
-    .action(() => {
-      const key = PrivateKey.random();
-      const data = {
-        publicKey: key.toPublicKey().toBase58(),
-        privateKey: key.toBase58(),
-      };
-      callback({ id, status: "SUCCESS", data });
-    });
-
   const commandFaucet = program
     .command("faucet")
     .description("faucet commands");
@@ -517,6 +505,17 @@ const executeCommand = async (
   const commandAux = program
     .command("_")
     .description("Additional commands not part of appchain runtime");
+  commandAux
+    .command("generateKey")
+    .description("generate a new public/private key pair")
+    .action(() => {
+      const key = PrivateKey.random();
+      const data = {
+        publicKey: key.toPublicKey().toBase58(),
+        privateKey: key.toBase58(),
+      };
+      callback({ id, status: "SUCCESS", data });
+    });
   commandAux
     .command("getTxnState <hash>")
     .description("get the state of a transaction")
