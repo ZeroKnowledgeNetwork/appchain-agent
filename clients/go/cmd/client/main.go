@@ -81,10 +81,14 @@ func getGenesisEpoch() uint64 {
 	if err != nil {
 		log.Printf("ChainBridge command error: %v", err)
 	}
+
 	genesisEpoch, err := chBridge.GetDataUInt(response)
-	if err != nil {
+	if err == chainbridge.ErrNoData {
+		genesisEpoch = 0 // default
+	} else if err != nil {
 		log.Printf("ChainBridge data error: %v", err)
 	}
+
 	return genesisEpoch
 }
 
@@ -117,6 +121,7 @@ func main() {
 
 	sendCommand("admin getAdmin", nil)
 	sendCommand("admin setAdmin", nil)
+	sendCommand("admin getAdmin", nil)
 
 	sendCommand("token getBalance", nil)
 	sendCommand("faucet getEnabled", nil)
