@@ -352,6 +352,34 @@ const executeCommand = async (
       const e = await client.query.runtime.Pki.genesisEpoch.get();
       callback({ id, status: "SUCCESS", data: `${e?.toBigInt()}` });
     });
+  commandPKI
+    .command("getDocument <epoch>")
+    .description("get PKI document for the given epoch")
+    .action(async (epoch: number) => {
+      if (!ipfsNode) {
+        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
+        return;
+      }
+
+      const _cid = await client.query.runtime.Pki.documents.get(
+        Field.from(epoch),
+      );
+      if (!_cid) {
+        callback({ id, status: "FAILURE", data: "Document not found" });
+        return;
+      }
+
+      // get data from IPFS by cid
+      const cid = _cid.toString();
+      const data = await ipfsNode.getBytes(cid);
+
+      let debug = "";
+      debug += `DEBUG: epoch=${epoch}\n`;
+      debug += `       cid=${cid}`;
+      console.log(debug);
+
+      callback({ id, status: "SUCCESS", data });
+    });
   // utility: given a mix descriptor identifier,
   // get and callback the descriptor with data
   const pkiGetMixDescriptor = async (did: Field) => {
@@ -369,7 +397,7 @@ const executeCommand = async (
 
     // get data from IPFS by cid
     const cid = d.cid.toString();
-    const descriptor = await ipfsNode.getBytes(cid);
+    const data = await ipfsNode.getBytes(cid);
 
     let debug = "";
     debug += `DEBUG: epoch=${d.epoch} identifier=${d.identifier}\n`;
@@ -377,7 +405,7 @@ const executeCommand = async (
     debug += `       cid=${cid}`;
     console.log(debug);
 
-    callback({ id, status: "SUCCESS", data: descriptor });
+    callback({ id, status: "SUCCESS", data });
   };
   commandPKI
     .command("getMixDescriptor <epoch> <identifier>")
@@ -418,6 +446,37 @@ const executeCommand = async (
       callback({ id, status: "SUCCESS", data: `${counter?.toBigInt()}` });
     });
   commandPKI
+    .command("setDocument <epoch>")
+    .description("[listen] set pki document <document := payload>")
+    .action(async (epoch: number) => {
+      if (!ipfsNode) {
+        callback({ id, status: "FAILURE", data: "IPFSNode not started" });
+        return;
+      }
+      if (!payload) {
+        callback({ id, status: "FAILURE", data: "Payload undefined" });
+        return;
+      }
+
+      // Note: The payload is used for lossless encoding of binary data.
+      // store the doc data on IPFS
+      const cid = await ipfsNode.putBytes(payload);
+
+      // register descriptor with appchain
+      const r = await txer(async () => {
+        await pki.setDocument(Field.from(epoch), CircuitString.fromString(cid));
+      });
+
+      let debug = "";
+      debug += `DEBUG: epoch=${epoch}\n`;
+      debug += `       cid=${cid}\n`;
+      debug += `       tx=${r.tx}`;
+      console.log(debug);
+
+      const data = r.data ? r.data : cid;
+      callback({ id, ...r, data });
+    });
+  commandPKI
     .command("setMixDescriptor <epoch> <identifier>")
     .description("[listen] set mix descriptor <descriptor := payload>")
     .action(async (epoch: number, identifier: string) => {
@@ -454,6 +513,7 @@ const executeCommand = async (
       const data = r.data ? r.data : cid;
       callback({ id, ...r, data });
     });
+
   const commandAux = program
     .command("_")
     .description("Additional commands not part of appchain runtime");
