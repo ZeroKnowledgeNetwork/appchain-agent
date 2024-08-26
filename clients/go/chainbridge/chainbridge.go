@@ -2,6 +2,7 @@ package chainbridge
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,6 +50,12 @@ type CommandResponse struct {
 	ID     int         `cbor:"id,omitempty"`
 	TX     string      `cbor:"tx,omitempty"`
 }
+
+var (
+	// ErrNoData is the error returned when attempting to convert data from a command response with no data
+	// Use this to test if requested appchain state is undefined
+	ErrNoData = errors.New("ChainBridge: no data")
+)
 
 // Initialize a ChainBridge instance. Accepts either:
 // - a socket path or
@@ -264,6 +271,10 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 }
 
 func (c *ChainBridge) GetDataBytes(response CommandResponse) ([]byte, error) {
+	if response.Data == nil {
+		return nil, ErrNoData
+	}
+
 	// Check if the data is a CBOR tag
 	tag, ok := response.Data.(cbor.Tag)
 	if !ok {
@@ -280,13 +291,13 @@ func (c *ChainBridge) GetDataBytes(response CommandResponse) ([]byte, error) {
 }
 
 func (c *ChainBridge) GetDataUInt(response CommandResponse) (uint64, error) {
+	if response.Data == nil {
+		return 0, ErrNoData
+	}
+
 	str, ok := response.Data.(string)
 	if !ok {
 		return 0, fmt.Errorf("unexpected data type: %T, expected string", response.Data)
-	}
-
-	if str == "undefined" {
-		return 0, nil
 	}
 
 	num, err := strconv.ParseUint(str, 10, 64)
