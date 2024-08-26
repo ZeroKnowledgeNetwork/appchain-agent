@@ -345,6 +345,13 @@ const executeCommand = async (
   }
 
   const commandPKI = program.command("pki").description("pki commands");
+  commandPKI
+    .command("getGenesisEpoch")
+    .description("get the genesis epoch")
+    .action(async () => {
+      const e = await client.query.runtime.Pki.genesisEpoch.get();
+      callback({ id, status: "SUCCESS", data: `${e?.toBigInt()}` });
+    });
   // utility: given a mix descriptor identifier,
   // get and callback the descriptor with data
   const pkiGetMixDescriptor = async (did: Field) => {
