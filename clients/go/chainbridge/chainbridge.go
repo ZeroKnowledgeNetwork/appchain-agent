@@ -270,6 +270,19 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 	}
 }
 
+func (c *ChainBridge) GetDataBool(response CommandResponse) (bool, error) {
+	if response.Data == nil {
+		return false, ErrNoData
+	}
+
+	b, ok := response.Data.(bool)
+	if !ok {
+		return false, fmt.Errorf("unexpected data type: %T, expected bool", response.Data)
+	}
+
+	return b, nil
+}
+
 func (c *ChainBridge) GetDataBytes(response CommandResponse) ([]byte, error) {
 	if response.Data == nil {
 		return nil, ErrNoData
