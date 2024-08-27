@@ -564,6 +564,17 @@ process.on("SIGINT", cleanup); // Handle CTRL-C
 process.on("SIGTERM", cleanup); // Handle kill commands
 process.on("exit", cleanup); // Process exit
 
+// JSON.stringify replacer to limit output length for logs
+const rep = (_key: string, value: any) => {
+  if (value instanceof Uint8Array) {
+    return `Uint8Array(${value.length})...`;
+  }
+  if (typeof value === "string" && value.length > 100) {
+    return value.substring(0, 100) + "...";
+  }
+  return value;
+};
+
 const server = net.createServer((socket) => {
   let id = 0; // simulate id unless provided
   let buffer = Buffer.alloc(0); // Buffer to store incoming data
@@ -588,7 +599,7 @@ const server = net.createServer((socket) => {
 
           const req = decoded.value as CommandRequest;
           await executeCommand(new Command(), req, (res) => {
-            console.log(`❯ ${req.command} => ${JSON.stringify(res)}\n`);
+            console.log(`❯ ${req.command} => ${JSON.stringify(res, rep)}\n`);
             const out = cbor.encode(res);
             socket.write(out);
           });
