@@ -95,8 +95,6 @@ export class IPFSNode {
     // add bytes to the helia node and receive a unique content identifier
     const cid = await this.fs.addBytes(data);
 
-    console.log("IPFSNode put", cid.toString());
-
     return cid.toString();
   }
 
@@ -125,8 +123,6 @@ export class IPFSNode {
       result.set(chunk, offset);
       offset += chunk.length;
     }
-
-    console.log("IPFSNode get", cid);
 
     return result;
   }
