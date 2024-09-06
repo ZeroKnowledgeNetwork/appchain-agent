@@ -75,6 +75,7 @@ program
       .default("text")
       .choices(["text", "cbor"]),
   )
+  .option("--debug", "print additional logs", false)
   .option("--nonce", "[listen] use internally tracked nonce", false)
   .option("--ipfs", "enable IPFS node", false)
   .option(
@@ -98,6 +99,7 @@ let opts = {
   help: process.argv.includes("--help") || process.argv.includes("-h"),
   admin: process.argv.includes("--admin"),
   listen: process.argv.includes("--listen"),
+  debug: process.argv.includes("--debug"),
   nonce: process.argv.includes("--nonce"),
   ipfs: process.argv.includes("--ipfs"),
   key: "",
@@ -170,7 +172,7 @@ const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
 const executeCommand = async (
   program: Command,
   request: CommandRequest,
-  callback: (response: CommandResponse) => void,
+  callback: (response: CommandResponse, debug?: any) => void,
 ) => {
   const { command, payload, id } = request;
 
@@ -211,7 +213,6 @@ const executeCommand = async (
     .command("drip")
     .description("drip tokens from the faucet")
     .action(async () => {
-      console.log("drip tokens from the faucet");
       const r = await txer(async () => {
         await faucet.drip();
       });
@@ -377,12 +378,8 @@ const executeCommand = async (
       const cid = cid_.toString();
       const data = await ipfsNode.getBytes(cid);
 
-      let debug = "";
-      debug += `DEBUG: epoch=${epoch}\n`;
-      debug += `       cid=${cid}`;
-      console.log(debug);
-
-      callback({ id, status: SUCCESS, data });
+      const debug = { epoch, cid };
+      callback({ id, status: SUCCESS, data }, debug);
     });
   // utility: given a mix descriptor identifier,
   // get and callback the descriptor with data
@@ -397,13 +394,14 @@ const executeCommand = async (
     const cid = d.cid.toString();
     const data = await ipfsNode.getBytes(cid);
 
-    let debug = "";
-    debug += `DEBUG: epoch=${d.epoch} identifier=${d.identifier}\n`;
-    debug += `       did=${did}\n`;
-    debug += `       cid=${cid}`;
-    console.log(debug);
+    const debug = {
+      epoch: d.epoch.toString(),
+      identifier: d.identifier.toString(),
+      did: did.toString(),
+      cid,
+    };
 
-    callback({ id, status: SUCCESS, data });
+    callback({ id, status: SUCCESS, data }, debug);
   };
   commandPKI
     .command("getMixDescriptor <epoch> <identifier>")
@@ -450,13 +448,8 @@ const executeCommand = async (
         await pki.setDocument(Field.from(epoch), CircuitString.fromString(cid));
       });
 
-      let debug = "";
-      debug += `DEBUG: epoch=${epoch}\n`;
-      debug += `       cid=${cid}\n`;
-      debug += `       tx=${r.tx}`;
-      console.log(debug);
-
-      callback({ id, ...r });
+      const debug = { epoch, cid, tx: r.tx };
+      callback({ id, ...r }, debug);
     });
   commandPKI
     .command("setMixDescriptor <epoch> <identifier>")
@@ -480,13 +473,8 @@ const executeCommand = async (
         );
       });
 
-      let debug = "";
-      debug += `DEBUG: epoch=${epoch} identifier=${identifier}\n`;
-      debug += `       cid=${cid}\n`;
-      debug += `       tx=${r.tx}`;
-      console.log(debug);
-
-      callback({ id, ...r });
+      const debug = { epoch, identifier, cid, tx: r.tx };
+      callback({ id, ...r }, debug);
     });
 
   const commandAux = program
@@ -508,7 +496,7 @@ const executeCommand = async (
     .description("get the state of a transaction")
     .action(async (hash: string) => {
       const data = await getTxnState(hash);
-      return callback({ id, status: SUCCESS, data });
+      callback({ id, status: SUCCESS, data });
     });
 
   program.configureOutput({
@@ -542,8 +530,9 @@ if (opts.ipfs) {
 if (!opts.listen) {
   const command = process.argv.slice(2).join(" ");
   const regex = /^Usage: /;
-  await executeCommand(program, { command, id: 0 }, (res) => {
+  await executeCommand(program, { command, id: 0 }, (res, debug) => {
     regex.test(res.data) ? console.log(res.data) : console.log(res);
+    if (opts.debug && debug) console.log("DEBUG:", debug);
   });
   if (ipfsNode) await ipfsNode.stop();
   process.exit(0);
@@ -606,8 +595,9 @@ const server = net.createServer((socket) => {
           });
 
           const req = decoded.value as CommandRequest;
-          await executeCommand(new Command(), req, (res) => {
-            console.log(`❯ ${req.command} => ${JSON.stringify(res, rep)}\n`);
+          await executeCommand(new Command(), req, (res, debug) => {
+            console.log(`\n❯ ${req.command} => ${JSON.stringify(res, rep)}`);
+            if (opts.debug && debug) console.log("DEBUG:", debug);
             const out = cbor.encode(res);
             socket.write(out);
           });
