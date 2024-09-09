@@ -51,6 +51,14 @@ type CommandResponse struct {
 	TX     string      `cbor:"tx,omitempty"`
 }
 
+type Node struct {
+	Administrator string `cbor:"administrator"`
+	Identifier    string `cbor:"identifier"`
+	IsGatewayNode bool   `cbor:"isGatewayNode"`
+	IsServiceNode bool   `cbor:"isServiceNode"`
+	IdentityKey   []byte `cbor:"identityKey"`
+}
+
 var (
 	// ErrNoData is the error returned when attempting to convert data from a command response with no data
 	// Use this to test if requested appchain state is undefined
@@ -319,4 +327,32 @@ func (c *ChainBridge) GetDataUInt(response CommandResponse) (uint64, error) {
 	}
 
 	return num, nil
+}
+
+func (c *ChainBridge) DataUnmarshal(response CommandResponse, v interface{}) error {
+	if response.Data == nil {
+		return ErrNoData
+	}
+
+	bytes, ok := response.Data.([]byte)
+	if !ok {
+		return fmt.Errorf("unexpected data type: %T, expected []byte", response.Data)
+	}
+
+	err := cbor.Unmarshal(bytes, v)
+	if err != nil {
+		return fmt.Errorf("CBOR Error: %v", err)
+	}
+
+	return nil
+}
+
+func Bool2int(b bool) int {
+	var i int
+	if b {
+		i = 1
+	} else {
+		i = 0
+	}
+	return i
 }
