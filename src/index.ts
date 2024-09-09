@@ -14,7 +14,9 @@ import {
 } from "o1js";
 import {
   Balance,
+  CID,
   MixDescriptor,
+  Node,
   TreasuryId,
   client,
   getTxnState,
@@ -310,13 +312,64 @@ const executeCommand = async (
       callback({ id, status: SUCCESS, data: open?.toBoolean() });
     });
   commandNodes
-    .command("register")
-    .description("register a node with this user's public key")
-    .action(async () => {
-      const r = await txer(async () => {
-        await nodes.register();
-      });
-      callback({ id, ...r });
+    .command("register <identifier> [isGatewayNode] [isServiceNode]")
+    .description("register a node <identityKey := payload>")
+    .action(
+      async (
+        identifier: string,
+        isGatewayNode?: boolean,
+        isServiceNode?: boolean,
+      ) => {
+        if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+        if (!payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+        const identityKeyCID = await ipfsNode.putBytes(payload);
+
+        const r = await txer(async () => {
+          await nodes.register(
+            new Node({
+              administrator: publicKey,
+              identifier: CircuitString.fromString(identifier),
+              identityKeyCID: CID.fromString(identityKeyCID),
+              isGatewayNode: Bool(isGatewayNode ?? false),
+              isServiceNode: Bool(isServiceNode ?? false),
+            }),
+          );
+        });
+
+        const debug = { identifier, cid: identityKeyCID, tx: r.tx };
+        callback({ id, ...r }, debug);
+      },
+    );
+  commandNodes
+    .command("getNode <identifier>")
+    .description("get node by identifier")
+    .action(async (identifier: string) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+      const nodeID = Node.getID(CircuitString.fromString(identifier));
+      const node = (await client.query.runtime.Nodes.nodes.get(nodeID)) as
+        | Node
+        | undefined;
+      if (!node) return callback(responses.RECORD_NOT_FOUND);
+
+      const cid = node.identityKeyCID.toString();
+      const identityKey = await ipfsNode.getBytes(cid);
+
+      const { identityKeyCID, ...rest } = Node.toObject(node);
+      const data = {
+        identityKey,
+        ...rest,
+      };
+
+      const debug = { identifier, cid, node: rest };
+      callback(
+        {
+          id,
+          status: SUCCESS,
+          data: opts.socketFormat === "cbor" ? cbor.encode(data) : data,
+        },
+        debug,
+      );
     });
   commandNodes
     .command("getRegistrationStake")
