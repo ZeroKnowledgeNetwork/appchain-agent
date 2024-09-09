@@ -24,9 +24,8 @@ func sendCommand(command string, payload []byte) {
 	}
 }
 
-// Test round-trip of CBOR (en|de)coding with IPFS-(re)stored binary data.
-func testBinaryData() {
-	// some arbitrary struct
+func pkiMixDescriptor() {
+	// arbitrary struct to test round-trip of CBOR + IPFS binary data
 	type TestData struct {
 		Status string `cbor:"status"`
 		Data   string `cbor:"data"`
@@ -46,21 +45,29 @@ func testBinaryData() {
 	if err != nil {
 		log.Printf("CBOR Error: %v", err)
 	}
-	log.Printf("Encoded data in: %v (%T)", enc, enc)
 
-	// send encoded data as payload to be stored in IPFS and indexed in appchain
-	sendCommand("pki setMixDescriptor 1000 node-5000", enc)
+	epoch := 1000
+	id := "node-5000"
+
+	// send encoded data as payload to IPFS and the appchain
+	command := fmt.Sprintf("pki setMixDescriptor %d %s", epoch, id)
+	response, err := chBridge.Command(command, enc)
+	log.Printf("Response (%s): %+v\n", command, response)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	}
+	if response.Error != "" {
+		log.Printf("ChainBridge response error: %v", response.Error)
+	}
 
 	// retrieve the stored data
-	command := "pki getMixDescriptor 1000 node-5000"
-	response, err := chBridge.Command(command, nil)
+	command = fmt.Sprintf("pki getMixDescriptor %d %s", epoch, id)
+	response, err = chBridge.Command(command, nil)
 	if err != nil {
 		log.Printf("ChainBridge command error: %v", err)
 	} else {
 		log.Printf("Response (%s): %+v\n", command, response)
 	}
-	log.Printf("Encoded data out: %v (%T)", response.Data, response.Data)
-
 	data, err := chBridge.GetDataBytes(response)
 	if err != nil {
 		log.Printf("ChainBridge data error: %v", err)
@@ -140,6 +147,6 @@ func main() {
 	wg.Wait()
 
 	log.Printf("genesisEpoch: %d", getGenesisEpoch())
-	testBinaryData()
+	pkiMixDescriptor()
 	log.Printf("genesisEpoch: %d", getGenesisEpoch())
 }
