@@ -24,6 +24,45 @@ func sendCommand(command string, payload []byte) {
 	}
 }
 
+func nodeRegistration() {
+	node1 := chainbridge.Node{
+		Identifier:    "node-5000",
+		IsGatewayNode: false,
+		IsServiceNode: false,
+		IdentityKey:   []byte("0x1234"),
+	}
+	log.Printf("Node in: %+v", node1)
+
+	// register the node
+	command := fmt.Sprintf(
+		"nodes register %s %d %d",
+		node1.Identifier,
+		chainbridge.Bool2int(node1.IsGatewayNode),
+		chainbridge.Bool2int(node1.IsServiceNode))
+	response, err := chBridge.Command(command, node1.IdentityKey)
+	log.Printf("Response (%s): %+v\n", command, response)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	}
+	if response.Error != "" {
+		log.Printf("ChainBridge response error: %v", response.Error)
+	}
+
+	// retrieve the node
+	command = fmt.Sprintf("nodes getNode %s", node1.Identifier)
+	response, err = chBridge.Command(command, nil)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	} else {
+		log.Printf("Response (%s): %+v\n", command, response)
+	}
+	var node2 chainbridge.Node
+	if err := chBridge.DataUnmarshal(response, &node2); err != nil {
+		log.Printf("ChainBridge data error: %v", err)
+	}
+	log.Printf("Node out: %+v", node2)
+}
+
 func pkiMixDescriptor() {
 	// arbitrary struct to test round-trip of CBOR + IPFS binary data
 	type TestData struct {
@@ -129,7 +168,8 @@ func main() {
 	sendCommand("admin getAdmin", nil)
 	sendCommand("admin setAdmin", nil)
 	sendCommand("admin getAdmin", nil)
-
+	sendCommand("nodes setRegistrationStake 0", nil)
+	sendCommand("nodes openRegistration", nil)
 	sendCommand("token getBalance", nil)
 	sendCommand("faucet getEnabled", nil)
 	sendCommand("faucet setEnabled 1", nil)
@@ -145,6 +185,8 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
+
+	nodeRegistration()
 
 	log.Printf("genesisEpoch: %d", getGenesisEpoch())
 	pkiMixDescriptor()
