@@ -79,6 +79,11 @@ program
   )
   .option("--debug", "print additional logs", false)
   .option("--nonce", "[listen] use internally tracked nonce", false)
+  .addOption(
+    new Option("--nonce-recheck-interval <interval>", "nonce recheck interval")
+      .default(10)
+      .implies({ nonce: true }),
+  )
   .option("--ipfs", "enable IPFS node", false)
   .option(
     "--ipfs-data <path>",
@@ -108,6 +113,7 @@ let opts = {
   socket: "",
   socketFormat: "",
   ipfsData: "",
+  nonceRecheckInterval: "",
   txStatusInterval: "",
   txStatusRetries: "",
 };
@@ -136,7 +142,13 @@ const token = client.runtime.resolve("Token");
 
 // helper function to send transactions
 let nonce: number | undefined;
+let txCounter = 0;
+const nri = parseInt(opts.nonceRecheckInterval);
 const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
+  // A nonce recheck interval offers a recovery option for an out of sync nonce.
+  // It is more ideal to wait for each txn status and its potential error message.
+  if (nri > 0 && ++txCounter % nri === 0) nonce = undefined;
+
   const tx = await client.transaction(publicKey, txfn, { nonce });
   console.log("tx.nonce", tx.transaction!.nonce.toString());
   tx.transaction = tx.transaction?.sign(privateKey);
