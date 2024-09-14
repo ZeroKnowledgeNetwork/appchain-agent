@@ -65,6 +65,19 @@ var (
 	ErrNoData = errors.New("ChainBridge: no data")
 )
 
+// appchain-agent commands; cuz compile errors are better than runtime errors
+var (
+	Cmd_nodes_getNode               = "nodes getNode %s"
+	Cmd_nodes_register              = "nodes register %s %d %d"
+	Cmd_pki_getDocucment            = "pki getDocument %d"
+	Cmd_pki_getGenesisEpoch         = "pki getGenesisEpoch"
+	Cmd_pki_getMixDescriptor        = "pki getMixDescriptor %d %s"
+	Cmd_pki_getMixDescriptorByIndex = "pki getMixDescriptorByIndex %d %d"
+	Cmd_pki_getMixDescriptorCounter = "pki getMixDescriptorCounter %d"
+	Cmd_pki_setDocument             = "pki setDocument %d"
+	Cmd_pki_setMixDescriptor        = "pki setMixDescriptor %d %s"
+)
+
 // Initialize a ChainBridge instance. Accepts either:
 // - a socket path or
 // - a command with its arguments to launch the process.
