@@ -63,6 +63,9 @@ var (
 	// ErrNoData is the error returned when attempting to convert data from a command response with no data
 	// Use this to test if requested appchain state is undefined
 	ErrNoData = errors.New("ChainBridge: no data")
+
+	// command response errors returned by the appchain
+	Err_nodes_alreadyRegistered = "Node already registered"
 )
 
 // appchain-agent commands; cuz compile errors are better than runtime errors
