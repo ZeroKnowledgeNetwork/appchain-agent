@@ -470,7 +470,7 @@ const executeCommand = async (
     .command("getMixDescriptorByIndex <epoch> <index>")
     .description("get mix descriptor for the given epoch and index")
     .action(async (epoch: number, index: number) => {
-      const did = await client.query.runtime.Pki.mixDescriptorDirectory.get(
+      const did = await client.query.runtime.Pki.mixDescriptorIndex.get(
         Poseidon.hash([Field.from(epoch), Field.from(index)]),
       );
       if (!did) return callback(responses.RECORD_NOT_FOUND);
