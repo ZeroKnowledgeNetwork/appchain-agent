@@ -290,7 +290,7 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 		return response, nil
 	case <-time.After(c.cmdTimeout):
 		c.responses.Delete(req.ID)
-		return response, fmt.Errorf("Timeout waiting for response to request ID=%d", req.ID)
+		return response, fmt.Errorf("Timeout waiting for response to request ID=%d: %s", req.ID, req.Command)
 	}
 }
 
