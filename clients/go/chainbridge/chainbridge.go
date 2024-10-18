@@ -95,7 +95,7 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 		socketFile:  socketFileOrCommandName,
 		dialRetries: 10,
 		dialTimeout: 3 * time.Second,
-		cmdTimeout:  10 * time.Second,
+		cmdTimeout:  20 * time.Second,
 		reconnect:   true,
 		isConnected: false,
 	}
