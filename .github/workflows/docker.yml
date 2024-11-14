@@ -1,7 +1,9 @@
-name: Build and Push Docker Image
+name: Build and Push Appchain-Agent Docker Image
 
 on:
   push:
+    paths:
+      - ".github/workflows/docker.yml"
   workflow_dispatch:
 
 jobs:
@@ -29,6 +31,9 @@ jobs:
           repository: ${{ env.APPCHAIN_REPO }}
           ssh-key: ${{ secrets.APPCHAIN_DEPLOY_KEY }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -39,16 +44,34 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/agent
+            ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw
+            type=sha
+
+      - name: Build and export to Docker
+        uses: docker/build-push-action@v6
+        with:
+          build-contexts: |
+            context-appchain=./appchain
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          context: ./appchain-agent
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          load: true
+
+      - name: Inspect docker image
         run: |
-          IMAGE_TAG=$(git -C ./appchain-agent describe --tags --abbrev=0 || echo "latest")
-          echo docker build \
-            --build-context context-appchain=./appchain \
-            --file ./appchain-agent/Dockerfile \
-            --tag ${{ env.IMAGE_NAME }}:$IMAGE_TAG \
-            ./appchain-agent
-          docker build \
-            --build-context context-appchain=./appchain \
-            --file ./appchain-agent/Dockerfile \
-            --tag ${{ env.IMAGE_NAME }}:$IMAGE_TAG \
-            ./appchain-agent
+          docker images
