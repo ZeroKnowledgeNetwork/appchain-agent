@@ -9,7 +9,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      IMAGE_NAME: ${{ github.repository_owner }}/agent
+      # IMAGE_NAME: ${{ github.repository_owner }}/agent
+      IMAGE_NAME: zkn/agent
       APPCHAIN_REPO: ${{ github.repository_owner }}/appchain
       APPCHAIN_REF: main
       REGISTRY: ghcr.io
@@ -41,9 +42,13 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_TAG=$(git -C ./appchain-agent describe --tags --abbrev=0 || echo "latest")
+          echo docker build \
+            --build-context context-appchain=./appchain \
+            --file ./appchain-agent/Dockerfile \
+            --tag ${{ env.IMAGE_NAME }}:$IMAGE_TAG \
+            ./appchain-agent
           docker build \
             --build-context context-appchain=./appchain \
-            --file Dockerfile \
-            --tag ${{ env.REGISTRY }}/${{ github.repository }}:$IMAGE_TAG \
+            --file ./appchain-agent/Dockerfile \
             --tag ${{ env.IMAGE_NAME }}:$IMAGE_TAG \
             ./appchain-agent
