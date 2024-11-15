@@ -17,8 +17,6 @@ jobs:
       APPCHAIN_REPO: ${{ github.repository_owner }}/appchain
       IMAGE: ghcr.io/${{ github.repository_owner }}/agent
       IMAGE_TEST: zkn/agent
-      # https://docs.docker.com/build/ci/github-actions/reproducible-builds/
-      SOURCE_DATE_EPOCH: 0
 
     steps:
       - name: Checkout appchain-agent repository
@@ -60,6 +58,10 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha
+
+      # https://docs.docker.com/build/ci/github-actions/reproducible-builds/
+      - name: Set source build date from git commit timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
 
       - name: Build and export to Docker
         uses: docker/build-push-action@v6
