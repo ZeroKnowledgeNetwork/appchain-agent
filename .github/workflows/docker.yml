@@ -18,11 +18,6 @@ jobs:
       REGISTRY: ghcr.io
 
     steps:
-      - name: Set Environment Variables
-        run: |
-          # echo "GIT_SHA_SHORT=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
-          echo "GIT_SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
       - name: Checkout appchain-agent repository
         uses: actions/checkout@v4
         with:
@@ -72,25 +67,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: ./appchain-agent
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          push: false
+          tags: ${{ env.IMAGE_NAME }}:test
           load: true
 
       - name: Test docker image
-        run: |
-          docker images
-          docker run --rm ${{ env.IMAGE_NAME }}:sha-${{ env.GIT_SHA_SHORT }} pnpm run agent --help
+        run: docker run --rm ${{ env.IMAGE_NAME }}:test pnpm run agent --help
 
       - name: Docker build and push
         uses: docker/build-push-action@v6
         with:
           build-contexts: |
             context-appchain=./appchain
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           context: ./appchain-agent
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # push: ${{ github.event_name != 'pull_request' }}
           push: false
+
+      - name: List docker images
+        run: docker images
