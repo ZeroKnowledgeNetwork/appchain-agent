@@ -13,11 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # IMAGE_NAME: ${{ github.repository_owner }}/agent
-      IMAGE_NAME: zkn/agent
-      APPCHAIN_REPO: ${{ github.repository_owner }}/appchain
       APPCHAIN_REF: main
-      REGISTRY: ghcr.io
+      APPCHAIN_REPO: ${{ github.repository_owner }}/appchain
+      IMAGE: ghcr.io/${{ github.repository_owner }}/agent
+      IMAGE_TEST: zkn/agent
+      # https://docs.docker.com/build/ci/github-actions/reproducible-builds/
+      SOURCE_DATE_EPOCH: 0
 
     steps:
       - name: Checkout appchain-agent repository
@@ -42,7 +43,7 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,8 +52,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/agent
-            ${{ env.IMAGE_NAME }}
+            ${{ env.IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -69,11 +69,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: ./appchain-agent
-          tags: ${{ env.IMAGE_NAME }}:test
+          tags: ${{ env.IMAGE_TEST }}:test
           load: true
 
       - name: Test docker image
-        run: docker run --rm ${{ env.IMAGE_NAME }}:test pnpm run agent --help
+        run: docker run --rm ${{ env.IMAGE_TEST }}:test pnpm run agent --help
 
       - name: Docker build and push
         uses: docker/build-push-action@v6
