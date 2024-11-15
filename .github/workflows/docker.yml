@@ -80,7 +80,7 @@ jobs:
       - name: Test docker image
         run: |
           docker images
-          docker run --rm ${{ IMAGE_NAME }}:sha-${{ env.GIT_SHA_SHORT }} pnpm run agent --help
+          docker run --rm ${{ env.IMAGE_NAME }}:sha-${{ env.GIT_SHA_SHORT }} pnpm run agent --help
 
       - name: Docker build and push
         uses: docker/build-push-action@v6
