@@ -4,7 +4,9 @@ on:
   push:
     paths:
       - ".github/workflows/docker.yml"
-  workflow_dispatch
+  workflow_dispatch:
+    branches:
+      - feature/ci-docker
 
 jobs:
   build-push-docker-image:
