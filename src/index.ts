@@ -16,6 +16,7 @@ import {
   Balance,
   CID,
   MixDescriptor,
+  Network,
   Node,
   TreasuryId,
   client,
@@ -130,6 +131,7 @@ console.log("opts", opts);
 await client.start();
 const admin = client.runtime.resolve("Admin");
 const faucet = client.runtime.resolve("Faucet");
+const networks = client.runtime.resolve("Networks");
 const nodes = client.runtime.resolve("Nodes");
 const pki = client.runtime.resolve("Pki");
 const token = client.runtime.resolve("Token");
@@ -302,6 +304,61 @@ const executeCommand = async (
         callback({ id, ...r });
       });
   }
+
+  const commandNetworks = program
+    .command("networks")
+    .description("networks commands");
+  commandNetworks
+    .command("register <identifier>")
+    .description("register a network <parameters := payload>")
+    .action(async (identifier: string) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+      if (!payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+      const parametersCID = await ipfsNode.putBytes(payload);
+
+      const r = await txer(async () => {
+        await networks.register(
+          new Network({
+            identifier: CircuitString.fromString(identifier),
+            parametersCID: CID.fromString(parametersCID),
+          }),
+        );
+      });
+
+      const debug = { identifier, cid: parametersCID, tx: r.tx };
+      callback({ id, ...r }, debug);
+    });
+  commandNetworks
+    .command("getNetwork <identifier>")
+    .description("get network by identifier")
+    .action(async (identifier: string) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+      const networkID = Network.getID(CircuitString.fromString(identifier));
+      const network = (await client.query.runtime.Networks.networks.get(
+        networkID,
+      )) as Network | undefined;
+      if (!network) return callback(responses.RECORD_NOT_FOUND);
+
+      const cid = network.parametersCID.toString();
+      const parameters = await ipfsNode.getBytes(cid);
+
+      const { parametersCID, ...rest } = Network.toObject(network);
+      const data = {
+        parameters,
+        ...rest,
+      };
+
+      const debug = { identifier, cid, network: rest };
+      callback(
+        {
+          id,
+          status: SUCCESS,
+          data: opts.socketFormat === "cbor" ? cbor.encode(data) : data,
+        },
+        debug,
+      );
+    });
 
   const commandNodes = program.command("nodes").description("nodes commands");
   commandNodes
