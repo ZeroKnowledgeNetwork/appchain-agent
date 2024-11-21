@@ -24,6 +24,42 @@ func sendCommand(command string, payload []byte) {
 	}
 }
 
+func networkRegistration() {
+	network1 := chainbridge.Network{
+		Identifier: "0x000",
+		Parameters: []byte("pA: 1\npB: 2\npC: 3\n"),
+	}
+	log.Printf("Network in: %+v", network1)
+
+	// register the network
+	command := fmt.Sprintf(
+		chainbridge.Cmd_networks_register,
+		network1.Identifier,
+	)
+	response, err := chBridge.Command(command, network1.Parameters)
+	log.Printf("Response (%s): %+v\n", command, response)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	}
+	if response.Error != "" {
+		log.Printf("ChainBridge response error: %v", response.Error)
+	}
+
+	// retrieve the network
+	command = fmt.Sprintf(chainbridge.Cmd_networks_getNetwork, network1.Identifier)
+	response, err = chBridge.Command(command, nil)
+	if err != nil {
+		log.Printf("ChainBridge command error: %v", err)
+	} else {
+		log.Printf("Response (%s): %+v\n", command, response)
+	}
+	var network2 chainbridge.Network
+	if err := chBridge.DataUnmarshal(response, &network2); err != nil {
+		log.Printf("ChainBridge data error: %v", err)
+	}
+	log.Printf("Network out: %+v", network2)
+}
+
 func nodeRegistration() {
 	node1 := chainbridge.Node{
 		Identifier:    "node-5000",
@@ -186,6 +222,7 @@ func main() {
 	}
 	wg.Wait()
 
+	networkRegistration()
 	nodeRegistration()
 
 	log.Printf("genesisEpoch: %d", getGenesisEpoch())
