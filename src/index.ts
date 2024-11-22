@@ -346,6 +346,21 @@ const executeCommand = async (
       callback({ id, ...r }, debug);
     });
   commandNetworks
+    .command("getActive")
+    .description("get the identifier of the active network(s)")
+    .action(async () => {
+      const nid = (await client.query.runtime.Networks.activeNetwork.get()) as
+        | Field
+        | undefined;
+      if (!nid) return callback(responses.RECORD_NOT_FOUND);
+
+      // retrieve the string form of the network identifier
+      const n = await client.query.runtime.Networks.networks.get(nid);
+      if (!n) return callback(responses.RECORD_NOT_FOUND);
+
+      callback({ id, status: SUCCESS, data: n.identifier.toString() });
+    });
+  commandNetworks
     .command("getNetwork <identifier> [file://]")
     .description("get network by identifier; optionally save params to file")
     .action(async (identifier: string, file?: string) => {
@@ -375,6 +390,16 @@ const executeCommand = async (
         },
         debug,
       );
+    });
+  commandNetworks
+    .command("setActive <identifier>")
+    .description("set the active network")
+    .action(async (identifier: string) => {
+      const networkID = Network.getID(CircuitString.fromString(identifier));
+      const r = await txer(async () => {
+        await networks.setActiveNetwork(networkID);
+      });
+      callback({ id, ...r });
     });
 
   const commandNodes = program.command("nodes").description("nodes commands");
