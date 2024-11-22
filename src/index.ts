@@ -61,6 +61,19 @@ const getPrivateKeyFromFile = async (path: string): Promise<PrivateKey> => {
   }
 };
 
+const getBytesFromFile = async (path: string): Promise<Uint8Array> => {
+  const f = path.replace(/^file:\/\//, "");
+  return await fs.readFile(f);
+};
+
+const putBytesToFile = async (
+  path: string,
+  data: Uint8Array,
+): Promise<void> => {
+  const f = path.replace(/^file:\/\//, "");
+  return await fs.writeFile(f, data);
+};
+
 const program = new Command();
 program.name("cli").description("appchain cli");
 
@@ -309,13 +322,16 @@ const executeCommand = async (
     .command("networks")
     .description("networks commands");
   commandNetworks
-    .command("register <identifier>")
-    .description("register a network <parameters := payload>")
-    .action(async (identifier: string) => {
+    .command("register <identifier> [file://]")
+    .description("register a network <parameters := file:// OR payload>")
+    .action(async (identifier: string, file?: string) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
-      if (!payload) return callback(responses.PAYLOAD_UNDEFINED);
 
-      const parametersCID = await ipfsNode.putBytes(payload);
+      // get network parameters from file or payload
+      const _payload = file ? await getBytesFromFile(file) : payload;
+      if (!_payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+      const parametersCID = await ipfsNode.putBytes(_payload);
 
       const r = await txer(async () => {
         await networks.register(
@@ -330,9 +346,9 @@ const executeCommand = async (
       callback({ id, ...r }, debug);
     });
   commandNetworks
-    .command("getNetwork <identifier>")
-    .description("get network by identifier")
-    .action(async (identifier: string) => {
+    .command("getNetwork <identifier> [file://]")
+    .description("get network by identifier; optionally save params to file")
+    .action(async (identifier: string, file?: string) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
       const networkID = Network.getID(CircuitString.fromString(identifier));
       const network = (await client.query.runtime.Networks.networks.get(
@@ -342,6 +358,7 @@ const executeCommand = async (
 
       const cid = network.parametersCID.toString();
       const parameters = await ipfsNode.getBytes(cid);
+      if (file) await putBytesToFile(file, parameters);
 
       const { parametersCID, ...rest } = Network.toObject(network);
       const data = {
