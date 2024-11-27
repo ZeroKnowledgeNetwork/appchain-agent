@@ -362,10 +362,24 @@ const executeCommand = async (
     });
   commandNetworks
     .command("getNetwork <identifier> [file://]")
-    .description("get network by identifier; optionally save params to file")
+    .description(
+      'get network by id; "_" for active, optionally save params to file',
+    )
     .action(async (identifier: string, file?: string) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
-      const networkID = Network.getID(CircuitString.fromString(identifier));
+
+      var networkID: Field;
+      if (identifier === "_") {
+        const nid =
+          (await client.query.runtime.Networks.activeNetwork.get()) as
+            | Field
+            | undefined;
+        if (!nid) return callback(responses.RECORD_NOT_FOUND);
+        networkID = nid;
+      } else {
+        networkID = Network.getID(CircuitString.fromString(identifier));
+      }
+
       const network = (await client.query.runtime.Networks.networks.get(
         networkID,
       )) as Network | undefined;
