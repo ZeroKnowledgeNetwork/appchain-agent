@@ -51,6 +51,11 @@ type CommandResponse struct {
 	TX     string      `cbor:"tx,omitempty"`
 }
 
+type Network struct {
+	Identifier string `cbor:"identifier"`
+	Parameters []byte `cbor:"parameters"`
+}
+
 type Node struct {
 	Administrator string `cbor:"administrator"`
 	Identifier    string `cbor:"identifier"`
@@ -65,11 +70,14 @@ var (
 	ErrNoData = errors.New("ChainBridge: no data")
 
 	// command response errors returned by the appchain
-	Err_nodes_alreadyRegistered = "Node already registered"
+	Err_networks_alreadyRegistered = "Network already registered"
+	Err_nodes_alreadyRegistered    = "Node already registered"
 )
 
 // appchain-agent commands; cuz compile errors are better than runtime errors
 var (
+	Cmd_networks_getNetwork         = "networks getNetwork %s"
+	Cmd_networks_register           = "networks register %s"
 	Cmd_nodes_getNode               = "nodes getNode %s"
 	Cmd_nodes_register              = "nodes register %s %d %d"
 	Cmd_pki_getDocucment            = "pki getDocument %d"

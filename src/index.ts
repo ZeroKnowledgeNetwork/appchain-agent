@@ -16,6 +16,7 @@ import {
   Balance,
   CID,
   MixDescriptor,
+  Network,
   Node,
   TreasuryId,
   client,
@@ -58,6 +59,19 @@ const getPrivateKeyFromFile = async (path: string): Promise<PrivateKey> => {
       throw e;
     }
   }
+};
+
+const getBytesFromFile = async (path: string): Promise<Uint8Array> => {
+  const f = path.replace(/^file:\/\//, "");
+  return await fs.readFile(f);
+};
+
+const putBytesToFile = async (
+  path: string,
+  data: Uint8Array,
+): Promise<void> => {
+  const f = path.replace(/^file:\/\//, "");
+  return await fs.writeFile(f, data);
 };
 
 const program = new Command();
@@ -130,6 +144,7 @@ console.log("opts", opts);
 await client.start();
 const admin = client.runtime.resolve("Admin");
 const faucet = client.runtime.resolve("Faucet");
+const networks = client.runtime.resolve("Networks");
 const nodes = client.runtime.resolve("Nodes");
 const pki = client.runtime.resolve("Pki");
 const token = client.runtime.resolve("Token");
@@ -302,6 +317,104 @@ const executeCommand = async (
         callback({ id, ...r });
       });
   }
+
+  const commandNetworks = program
+    .command("networks")
+    .description("networks commands");
+  commandNetworks
+    .command("register <identifier> [file://]")
+    .description("register a network <parameters := file:// OR payload>")
+    .action(async (identifier: string, file?: string) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+
+      // get network parameters from file or payload
+      const _payload = file ? await getBytesFromFile(file) : payload;
+      if (!_payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+      const parametersCID = await ipfsNode.putBytes(_payload);
+
+      const r = await txer(async () => {
+        await networks.register(
+          new Network({
+            identifier: CircuitString.fromString(identifier),
+            parametersCID: CID.fromString(parametersCID),
+          }),
+        );
+      });
+
+      const debug = { identifier, cid: parametersCID, tx: r.tx };
+      callback({ id, ...r }, debug);
+    });
+  commandNetworks
+    .command("getActive")
+    .description("get the identifier of the active network(s)")
+    .action(async () => {
+      const nid = (await client.query.runtime.Networks.activeNetwork.get()) as
+        | Field
+        | undefined;
+      if (!nid) return callback(responses.RECORD_NOT_FOUND);
+
+      // retrieve the string form of the network identifier
+      const n = await client.query.runtime.Networks.networks.get(nid);
+      if (!n) return callback(responses.RECORD_NOT_FOUND);
+
+      callback({ id, status: SUCCESS, data: n.identifier.toString() });
+    });
+  commandNetworks
+    .command("getNetwork <identifier> [file://]")
+    .description(
+      'get network by id; "_" for active, optionally save params to file',
+    )
+    .action(async (identifier: string, file?: string) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+
+      var networkID: Field;
+      if (identifier === "_") {
+        const nid =
+          (await client.query.runtime.Networks.activeNetwork.get()) as
+            | Field
+            | undefined;
+        if (!nid) return callback(responses.RECORD_NOT_FOUND);
+        networkID = nid;
+      } else {
+        networkID = Network.getID(CircuitString.fromString(identifier));
+      }
+
+      const network = (await client.query.runtime.Networks.networks.get(
+        networkID,
+      )) as Network | undefined;
+      if (!network) return callback(responses.RECORD_NOT_FOUND);
+
+      const cid = network.parametersCID.toString();
+      const parameters = await ipfsNode.getBytes(cid);
+      if (file) await putBytesToFile(file, parameters);
+
+      const { parametersCID, ...rest } = Network.toObject(network);
+      const data = {
+        parameters,
+        ...rest,
+      };
+
+      const debug = { identifier, cid, network: rest };
+      callback(
+        {
+          id,
+          status: SUCCESS,
+          data: opts.socketFormat === "cbor" ? cbor.encode(data) : data,
+        },
+        debug,
+      );
+    });
+  commandNetworks
+    .command("setActive <identifier>")
+    .description("set the active network")
+    .action(async (identifier: string) => {
+      const networkID = Network.getID(CircuitString.fromString(identifier));
+      const r = await txer(async () => {
+        await networks.setActiveNetwork(networkID);
+      });
+      callback({ id, ...r });
+    });
 
   const commandNodes = program.command("nodes").description("nodes commands");
   commandNodes
