@@ -12,20 +12,53 @@ with the data's Content Identifier indexed within the appchain.
 
 ## Installation
 
-Place this repo next to the `appchain` monorepo.
+This project uses local `file:` references to 0KN's
+[appchain](https://github.com/0KnowledgeNetwork/appchain) and
+[protokit](https://github.com/0KnowledgeNetwork/protokit).
+
+Place the projects in the same directory and ensure alignment of their git refs:
 
 ```
 .
 ├── appchain/
-└── appchain-agent/
+├── appchain-agent/
+└── protokit/
 ```
 
 Refer to appchain requirements including Node.js version.
 
-Install dependencies:
+### Build Deps & Start Appchain
 
 ```sh
+cd protokit
+npm install
+npm run build
+
+
+cd ../appchain
 pnpm install
+
+# build appchain for appchain-agent
+pnpm run build --filter=chain
+
+# run appchain sequencer, for example
+pnpm env:inmemory dev --filter chain -- --logLevel DEBUG
+
+
+cd ../appchain-agent
+pnpm install
+pnpm run build
+```
+
+## Development
+
+Set `appchain` and `protokit` versions within [deps.env](deps.env) for the
+working branch so that automated workflows use the correct dependency verions.
+For example, for an `appchain-agent` `release/0.1` branch:
+
+```env
+APPCHAIN=release/0.1
+PROTOKIT=zkn/release/0.1
 ```
 
 ## Usage
