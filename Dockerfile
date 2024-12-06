@@ -35,8 +35,6 @@ RUN apk add --no-cache \
 COPY --from=builder /app/appchain/packages/chain/dist /app/appchain/packages/chain/dist
 COPY --from=builder /app/appchain/packages/chain/package.json /app/appchain/packages/chain/
 COPY --from=builder /app/appchain/package.json /app/appchain/pnpm-lock.yaml /app/appchain/
-RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store cd /app/appchain && pnpm install --prod --frozen-lockfile
-
 COPY --from=builder /app/appchain-agent/dist ./dist
 COPY --from=builder /app/appchain-agent/package.json /app/appchain-agent/pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store pnpm install --prod --frozen-lockfile
