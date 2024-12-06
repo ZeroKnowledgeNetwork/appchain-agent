@@ -12,13 +12,22 @@ FROM base AS builder
 
 COPY package.json pnpm-lock.yaml ./
 
+COPY --from=context-protokit / /app/protokit
+RUN --mount=type=cache,id=npm,target=/root/.npm \
+  cd /app/protokit \
+  && npm set cache /root/.npm \
+  && npm ci \
+  && npm run build
+
 COPY --from=context-appchain / /app/appchain
 RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
   cd /app/appchain/packages/chain \
   && pnpm install --frozen-lockfile \
   && pnpm build
 
-RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
+  cd /app/appchain-agent \
+  && pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm run build
