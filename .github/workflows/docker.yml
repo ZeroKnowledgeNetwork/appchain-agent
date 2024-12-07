@@ -82,7 +82,7 @@ jobs:
 
       # https://docs.docker.com/build/ci/github-actions/reproducible-builds/
       - name: Set source build date from git commit timestamp
-        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
+        run: echo "SOURCE_DATE_EPOCH=$(cd appchain-agent && git log -1 --pretty=%ct)" >> $GITHUB_ENV
 
       - name: Build and export to Docker
         uses: docker/build-push-action@v6
