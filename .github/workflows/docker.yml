@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      APPCHAIN_REF: main
       APPCHAIN_REPO: ${{ github.repository_owner }}/appchain
+      PROTOKIT_REPO: ${{ github.repository_owner }}/protokit
       IMAGE: ghcr.io/${{ github.repository_owner }}/appchain-agent
       IMAGE_TEST: zkn/appchain-agent
 
@@ -32,6 +32,12 @@ jobs:
         with:
           path: appchain-agent
 
+      - name: Read dependencies versions
+        run: |
+          source appchain-agent/deps.env
+          echo "APPCHAIN_REF=${APPCHAIN}" >> $GITHUB_ENV
+          echo "PROTOKIT_REF=${PROTOKIT}" >> $GITHUB_ENV
+
       - name: Checkout appchain repository
         uses: actions/checkout@v4
         with:
@@ -39,6 +45,13 @@ jobs:
           ref: ${{ env.APPCHAIN_REF }}
           repository: ${{ env.APPCHAIN_REPO }}
           ssh-key: ${{ secrets.APPCHAIN_DEPLOY_KEY }}
+
+      - name: Checkout protokit repository
+        uses: actions/checkout@v4
+        with:
+          path: protokit
+          ref: ${{ env.PROTOKIT_REF }}
+          repository: ${{ env.PROTOKIT_REPO }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -69,7 +82,7 @@ jobs:
 
       # https://docs.docker.com/build/ci/github-actions/reproducible-builds/
       - name: Set source build date from git commit timestamp
-        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> $GITHUB_ENV
+        run: echo "SOURCE_DATE_EPOCH=$(cd appchain-agent && git log -1 --pretty=%ct)" >> $GITHUB_ENV
 
       - name: Build and export to Docker
         uses: docker/build-push-action@v6
@@ -78,6 +91,7 @@ jobs:
         with:
           build-contexts: |
             context-appchain=./appchain
+            context-protokit=./protokit
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: ./appchain-agent
@@ -92,6 +106,7 @@ jobs:
         with:
           build-contexts: |
             context-appchain=./appchain
+            context-protokit=./protokit
           context: ./appchain-agent
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
