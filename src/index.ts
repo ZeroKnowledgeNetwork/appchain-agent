@@ -138,7 +138,7 @@ if (!opts.help) {
   console.log(`Using key from ${opts.key}:`, publicKey.toBase58());
 }
 
-console.log("opts", opts);
+if (opts.debug && !opts.help) console.log("opts", opts);
 
 // fire up the appchain client!
 await client.start();
