@@ -5,6 +5,6 @@ image:
 	docker build \
 		--build-context context-appchain=../appchain \
 		--build-context context-protokit=../protokit \
-		--file Dockerfile \
+		--file docker/Dockerfile \
 		--tag $(docker_image) \
 		.

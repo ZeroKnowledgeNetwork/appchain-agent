@@ -10,8 +10,6 @@ WORKDIR /app/appchain-agent
 # Stage 1: Build
 FROM base AS builder
 
-COPY package.json pnpm-lock.yaml ./
-
 COPY --from=context-protokit / /app/protokit
 RUN --mount=type=cache,id=npm,target=/root/.npm \
   cd /app/protokit \
@@ -25,6 +23,7 @@ RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
   && pnpm install --frozen-lockfile \
   && pnpm build
 
+COPY package.json pnpm-lock.yaml /app/appchain-agent/
 RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
   cd /app/appchain-agent \
   && pnpm install --frozen-lockfile
@@ -35,6 +34,8 @@ RUN pnpm run build
 
 # Stage 2: Production image
 FROM base AS runner
+
+ENV NODE_ENV=production
 
 # install deps used by scripts
 RUN apk add --no-cache \
@@ -50,4 +51,8 @@ RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store pnpm install --prod --f
 
 COPY bin ./bin
 
+COPY --chmod=0555 ./docker/entry.sh ./entry.sh
+
 USER node
+
+ENTRYPOINT ["./entry.sh"]
