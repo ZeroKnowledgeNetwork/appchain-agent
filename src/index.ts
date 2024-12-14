@@ -24,25 +24,7 @@ import {
   getTxnStatus,
 } from "chain";
 import { IPFSNode } from "./ipfs";
-
-type CommandRequest = {
-  command: string; // command fed to the commander program
-  payload?: Uint8Array; // additional binary data unsuitable for transmission within `command` string
-  id?: number; // optional id to echo within the corresponding response
-};
-
-type CommandResponse = {
-  status: "SUCCESS" | "FAILURE" | "PENDING";
-  data?: any;
-  error?: string; // error message, if status is "FAILURE"
-  id?: number; // the id from the corresponding request, if it had one
-  tx?: string; // the hash of the transaction, if it had a transaction
-};
-
-// pragmatic helpers to avoid typos
-const SUCCESS = "SUCCESS";
-const FAILURE = "FAILURE";
-const PENDING = "PENDING";
+import { CommandRequest, CommandResponse, FAILURE, SUCCESS } from "./types";
 
 // Reads and returns a private key from a file.
 // If the file does not exist, generate a new private key, save it to the file, then return it.
