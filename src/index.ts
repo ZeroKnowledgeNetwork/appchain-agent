@@ -21,9 +21,9 @@ import {
   TreasuryId,
   client,
   getTxnState,
-  getTxnStatus,
 } from "chain";
 import { IPFSNode } from "./ipfs";
+import { TxHandler } from "./tx";
 import { CommandRequest, CommandResponse, FAILURE, SUCCESS } from "./types";
 
 // Reads and returns a private key from a file.
@@ -108,20 +108,6 @@ let opts = {
   txStatusRetries: "",
 };
 
-let privateKey: PrivateKey;
-let publicKey: PublicKey;
-
-if (!opts.help) {
-  program.parse();
-  opts = program.opts();
-
-  privateKey = await getPrivateKeyFromFile(opts.key);
-  publicKey = privateKey.toPublicKey();
-  console.log(`Using key from ${opts.key}:`, publicKey.toBase58());
-}
-
-if (opts.debug && !opts.help) console.log("opts", opts);
-
 // fire up the appchain client!
 await client.start();
 const admin = client.runtime.resolve("Admin");
@@ -131,38 +117,23 @@ const nodes = client.runtime.resolve("Nodes");
 const pki = client.runtime.resolve("Pki");
 const token = client.runtime.resolve("Token");
 
-// helper function to send transactions
-let nonce: number | undefined;
-const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
-  const tx = await client.transaction(publicKey, txfn, { nonce });
-  console.log("tx.nonce", tx.transaction!.nonce.toString());
-  tx.transaction = tx.transaction?.sign(privateKey);
-  await tx.send();
+let privateKey: PrivateKey;
+let publicKey: PublicKey;
+let txer: (txfn: () => Promise<void>) => Promise<CommandResponse>;
 
-  if (tx.transaction) {
-    // client.transaction will fetch nonce from the chain if not given as an option.
-    // An internally tracked nonce only works for one agent instance per public key
-    // but enables submission of many txns without waiting for their confirmation.
-    if (opts.nonce) nonce = Number(tx.transaction.nonce) + 1;
+if (!opts.help) {
+  program.parse();
+  opts = program.opts();
 
-    const { status, statusMessage } = await getTxnStatus(
-      tx.transaction,
-      () => {
-        console.log("⏳ waiting for tx to be confirmed...");
-      },
-      parseInt(opts.txStatusInterval),
-      parseInt(opts.txStatusRetries),
-    );
-    return {
-      status,
-      data: status !== FAILURE ? statusMessage : undefined,
-      error: status === FAILURE ? statusMessage : undefined,
-      tx: tx.transaction.hash().toString(),
-    };
-  }
+  privateKey = await getPrivateKeyFromFile(opts.key);
+  publicKey = privateKey.toPublicKey();
+  console.log(`Using key from ${opts.key}:`, publicKey.toBase58());
 
-  return { status: PENDING };
-};
+  if (opts.debug) console.log("opts", opts);
+
+  const txQueue = new TxHandler(client, publicKey, privateKey, opts);
+  txer = txQueue.submitTx.bind(txQueue);
+}
 
 ////////////////////////////////////////////////////////////////////////
 // Commands
