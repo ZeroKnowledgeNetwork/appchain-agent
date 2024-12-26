@@ -1,6 +1,6 @@
 import { PrivateKey, PublicKey } from "o1js";
 import { CommandResponse, FAILURE, PENDING } from "./types";
-import { getTxnStatus } from "chain";
+import { qry } from "chain";
 
 interface TxTask {
   txfn: () => Promise<void>;
@@ -65,10 +65,10 @@ export class TxHandler {
       // but enables submission of many txns without waiting for their confirmation.
       if (this.opts.nonce) this.nonce = Number(tx.transaction.nonce) + 1;
 
-      const { status, statusMessage } = await getTxnStatus(
-        tx.transaction,
+      const { status, statusMessage } = await qry.indexer.getTxStatus(
+        tx.transaction.hash().toString(),
         () => {
-          console.log("⏳ waiting for tx to be confirmed...");
+          console.log("⏳ Waiting for tx status...");
         },
         parseInt(this.opts.txStatusInterval),
         parseInt(this.opts.txStatusRetries),

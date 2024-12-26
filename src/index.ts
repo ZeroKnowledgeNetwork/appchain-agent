@@ -20,7 +20,7 @@ import {
   Node,
   TreasuryId,
   client,
-  getTxnState,
+  qry,
 } from "chain";
 import { IPFSNode } from "./ipfs";
 import { TxHandler } from "./tx";
@@ -614,7 +614,7 @@ const executeCommand = async (
     .command("getTxnState <hash>")
     .description("get the state of a transaction")
     .action(async (hash: string) => {
-      const data = await getTxnState(hash);
+      const data = await qry.sequencer.getTxnState(hash);
       callback({ id, status: SUCCESS, data });
     });
 
