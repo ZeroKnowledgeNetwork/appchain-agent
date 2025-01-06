@@ -1,6 +1,15 @@
 #!/bin/sh
 
-# map env var name to the one used internally
+# map env var names to the one used internally
+
+test ! -z "${URL_APPCHAIN_INDEXER}" \
+  && echo "URL_APPCHAIN_INDEXER=${URL_APPCHAIN_INDEXER}" \
+  && export NEXT_PUBLIC_PROTOKIT_INDEXER_GRAPHQL_URL="${URL_APPCHAIN_INDEXER}"
+
+test ! -z "${URL_APPCHAIN_PROCESSOR}" \
+  && echo "URL_APPCHAIN_PROCESSOR=${URL_APPCHAIN_PROCESSOR}" \
+  && export NEXT_PUBLIC_PROTOKIT_PROCESSOR_GRAPHQL_URL="${URL_APPCHAIN_PROCESSOR}"
+
 test ! -z "${URL_APPCHAIN_SEQUENCER}" \
   && echo "URL_APPCHAIN_SEQUENCER=${URL_APPCHAIN_SEQUENCER}" \
   && export NEXT_PUBLIC_PROTOKIT_GRAPHQL_URL="${URL_APPCHAIN_SEQUENCER}"
