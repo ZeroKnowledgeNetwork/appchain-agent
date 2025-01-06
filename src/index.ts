@@ -304,16 +304,9 @@ const executeCommand = async (
     .command("getActive")
     .description("get the identifier of the active network(s)")
     .action(async () => {
-      const nid = (await client.query.runtime.Networks.activeNetwork.get()) as
-        | Field
-        | undefined;
-      if (!nid) return callback(responses.RECORD_NOT_FOUND);
-
-      // retrieve the string form of the network identifier
-      const n = await client.query.runtime.Networks.networks.get(nid);
+      const n = await qry.processor.getActiveNetwork();
       if (!n) return callback(responses.RECORD_NOT_FOUND);
-
-      callback({ id, status: SUCCESS, data: n.identifier.toString() });
+      callback({ id, status: SUCCESS, data: n.identifier });
     });
   commandNetworks
     .command("getNetwork <identifier> [file://]")
@@ -323,28 +316,23 @@ const executeCommand = async (
     .action(async (identifier: string, file?: string) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
-      var networkID: Field;
+      var networkID: string;
       if (identifier === "_") {
-        const nid =
-          (await client.query.runtime.Networks.activeNetwork.get()) as
-            | Field
-            | undefined;
-        if (!nid) return callback(responses.RECORD_NOT_FOUND);
-        networkID = nid;
+        const n = await qry.processor.getActiveNetwork();
+        if (!n) return callback(responses.RECORD_NOT_FOUND);
+        networkID = n.identifier;
       } else {
-        networkID = Network.getID(CircuitString.fromString(identifier));
+        networkID = identifier;
       }
 
-      const network = (await client.query.runtime.Networks.networks.get(
-        networkID,
-      )) as Network | undefined;
+      const network = await qry.processor.getNetwork(networkID);
       if (!network) return callback(responses.RECORD_NOT_FOUND);
 
-      const cid = network.parametersCID.toString();
+      const cid = network.parametersCID;
       const parameters = await ipfsNode.getBytes(cid);
       if (file) await putBytesToFile(file, parameters);
 
-      const { parametersCID, ...rest } = Network.toObject(network);
+      const { parametersCID, ...rest } = network;
       const data = {
         parameters,
         ...rest,
