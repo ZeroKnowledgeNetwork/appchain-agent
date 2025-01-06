@@ -119,7 +119,7 @@ const token = client.runtime.resolve("Token");
 
 let privateKey: PrivateKey;
 let publicKey: PublicKey;
-let txer: (txfn: () => Promise<void>) => Promise<CommandResponse>;
+let txQueue: TxHandler;
 
 if (!opts.help) {
   program.parse();
@@ -131,8 +131,7 @@ if (!opts.help) {
 
   if (opts.debug) console.log("opts", opts);
 
-  const txQueue = new TxHandler(client, publicKey, privateKey, opts);
-  txer = txQueue.submitTx.bind(txQueue);
+  txQueue = new TxHandler(client, publicKey, privateKey, opts);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -145,6 +144,9 @@ const executeCommand = async (
   callback: (response: CommandResponse, debug?: any) => void,
 ) => {
   const { command, payload, id } = request;
+
+  // transaction submission helper
+  const txer = async (fn: () => Promise<void>) => txQueue.submitTx(fn, request);
 
   // common responses
   const responses: Record<string, CommandResponse> = {
@@ -714,8 +716,12 @@ const server = net.createServer((socket) => {
           });
 
           const req = decoded.value as CommandRequest;
+          console.log(`\n❯❯❯ [${req.id}] ${req.command}`);
           await executeCommand(new Command(), req, (res, debug) => {
-            console.log(`\n❯ ${req.command} => ${JSON.stringify(res, rep)}`);
+            console.log(
+              `❮❮❮ [${req.id}] ${req.command}`,
+              `❮❮❮ ${JSON.stringify(res, rep)}`,
+            );
             if (opts.debug && debug) console.log("DEBUG:", debug);
             const out = cbor.encode(res);
             socket.write(out);

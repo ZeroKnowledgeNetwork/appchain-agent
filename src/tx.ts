@@ -1,9 +1,11 @@
 import { PrivateKey, PublicKey } from "o1js";
-import { CommandResponse, FAILURE, PENDING } from "./types";
+import { CommandRequest, CommandResponse, FAILURE, PENDING } from "./types";
 import { qry } from "chain";
 
 interface TxTask {
   txfn: () => Promise<void>;
+  cmdReq: CommandRequest;
+  timeSubmit: number;
   resolve: (value: CommandResponse) => void;
   reject: (reason?: any) => void;
 }
@@ -39,11 +41,21 @@ export class TxHandler {
   ) {}
 
   // helper function to send transactions
-  public async submitTx(txfn: () => Promise<void>): Promise<CommandResponse> {
+  public async submitTx(
+    txfn: () => Promise<void>,
+    cmdReq: CommandRequest,
+  ): Promise<CommandResponse> {
+    const id = cmdReq.id ?? "?";
     return new Promise((resolve, reject) => {
-      this.txQueue.push({ txfn, resolve, reject });
+      const timeSubmit = Date.now();
+      this.txQueue.push({ txfn, cmdReq, timeSubmit, resolve, reject });
+      console.log(
+        `--- [${id}] Submission`,
+        `queue=${this.txQueue.length}`,
+        `$ ${cmdReq.command}`,
+      );
       this.processQueue().catch((err) => {
-        console.error("Error processing transaction queue:", err);
+        console.error(`--- [${id}] ❌ Error processing tx queue:`, err);
         while (this.txQueue.length > 0) {
           const task = this.txQueue.shift();
           task?.reject(err);
@@ -52,10 +64,15 @@ export class TxHandler {
     });
   }
 
-  private async processTx(txfn: () => Promise<void>): Promise<CommandResponse> {
+  private async processTx(
+    txfn: () => Promise<void>,
+    cmdReq: CommandRequest,
+    timeSubmit: number,
+  ): Promise<CommandResponse> {
+    const timeProcess = Date.now();
+    const id = cmdReq.id ?? "?";
     const nonce = this.nonce;
     const tx = await this.client.transaction(this.publicKey, txfn, { nonce });
-    console.log("tx.nonce", tx.transaction!.nonce.toString());
     tx.transaction = tx.transaction?.sign(this.privateKey);
     await tx.send();
 
@@ -65,14 +82,37 @@ export class TxHandler {
       // but enables submission of many txns without waiting for their confirmation.
       if (this.opts.nonce) this.nonce = Number(tx.transaction.nonce) + 1;
 
-      const { status, statusMessage } = await qry.indexer.getTxStatus(
+      const h7 = (tx.transaction.hash().toString() as string).substring(0, 7);
+
+      const { status, statusMessage } = await qry.processor.getTxStatus(
         tx.transaction.hash().toString(),
         () => {
-          console.log("⏳ Waiting for tx status...");
+          console.log(
+            `--- [${id}] ⏳ Awaiting status for`,
+            `tx=${h7}...`,
+            `n=${tx.transaction.nonce}`,
+            `q=${this.txQueue.length}`,
+            `$ ${cmdReq.command}`,
+          );
         },
         parseInt(this.opts.txStatusInterval),
         parseInt(this.opts.txStatusRetries),
       );
+
+      console.log(
+        `--- [${id}] ${status === FAILURE ? "❌" : "✅"} Returning status for`,
+        `tx=${h7}...`,
+        `n=${tx.transaction.nonce}`,
+        `q=${this.txQueue.length}`,
+        `t=${timeProcess - timeSubmit}` +
+          "/" +
+          `${Date.now() - timeProcess}` +
+          "/" +
+          `${Date.now() - timeSubmit}` +
+          "ms",
+        `$ ${cmdReq.command}`,
+      );
+
       return {
         status,
         data: status !== FAILURE ? statusMessage : undefined,
@@ -81,6 +121,7 @@ export class TxHandler {
       };
     }
 
+    console.error(`--- [${id}] ❌ !tx.transaction`);
     return { status: PENDING };
   }
 
@@ -89,9 +130,9 @@ export class TxHandler {
 
     this.isProcessing = true;
     while (this.txQueue.length > 0) {
-      const { txfn, resolve, reject } = this.txQueue[0];
+      const { txfn, cmdReq, timeSubmit, resolve, reject } = this.txQueue[0];
       try {
-        const result = await this.processTx(txfn);
+        const result = await this.processTx(txfn, cmdReq, timeSubmit);
         resolve(result);
       } catch (err) {
         reject(err);
