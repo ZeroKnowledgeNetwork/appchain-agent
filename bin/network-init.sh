@@ -40,14 +40,17 @@ while [ ! -S ${socket} ]; do sleep 1; done
 
 appchain () {
   echo "$@" | tee >(cat >&2) | nc -U -q 0 ${socket}
-  sleep 1s
 }
 
 appchain admin setAdmin
 appchain nodes setRegistrationStake 0
 appchain nodes openRegistration
 appchain networks register ${network_id} ${network_build}
+sleep 2s # prev command takes longer for IPFS
 appchain networks setActive ${network_id}
+
+# this ensures we don't kill prematurely
+sleep 10
 
 kill ${PID}
 

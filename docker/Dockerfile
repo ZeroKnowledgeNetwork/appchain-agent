@@ -19,9 +19,9 @@ RUN --mount=type=cache,id=npm,target=/root/.npm \
 
 COPY --from=context-appchain / /app/appchain
 RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
-  cd /app/appchain/packages/chain \
+  cd /app/appchain \
   && pnpm install --frozen-lockfile \
-  && pnpm build
+  && pnpm build --filter chain --filter qry
 
 COPY package.json pnpm-lock.yaml /app/appchain-agent/
 RUN --mount=type=cache,id=pnpm,target=${PNPM_HOME}/store \
@@ -44,6 +44,8 @@ RUN apk add --no-cache \
 
 COPY --from=builder /app/appchain/packages/chain/dist /app/appchain/packages/chain/dist
 COPY --from=builder /app/appchain/packages/chain/package.json /app/appchain/packages/chain/
+COPY --from=builder /app/appchain/packages/qry/dist /app/appchain/packages/qry/dist
+COPY --from=builder /app/appchain/packages/qry/package.json /app/appchain/packages/qry/
 COPY --from=builder /app/appchain/package.json /app/appchain/pnpm-lock.yaml /app/appchain/
 COPY --from=builder /app/appchain-agent/dist ./dist
 COPY --from=builder /app/appchain-agent/package.json /app/appchain-agent/pnpm-lock.yaml ./

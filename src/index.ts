@@ -20,29 +20,11 @@ import {
   Node,
   TreasuryId,
   client,
-  getTxnState,
-  getTxnStatus,
-} from "chain";
+} from "@zkn/chain";
+import { qry } from "@zkn/qry";
 import { IPFSNode } from "./ipfs";
-
-type CommandRequest = {
-  command: string; // command fed to the commander program
-  payload?: Uint8Array; // additional binary data unsuitable for transmission within `command` string
-  id?: number; // optional id to echo within the corresponding response
-};
-
-type CommandResponse = {
-  status: "SUCCESS" | "FAILURE" | "PENDING";
-  data?: any;
-  error?: string; // error message, if status is "FAILURE"
-  id?: number; // the id from the corresponding request, if it had one
-  tx?: string; // the hash of the transaction, if it had a transaction
-};
-
-// pragmatic helpers to avoid typos
-const SUCCESS = "SUCCESS";
-const FAILURE = "FAILURE";
-const PENDING = "PENDING";
+import { TxHandler } from "./tx";
+import { CommandRequest, CommandResponse, FAILURE, SUCCESS } from "./types";
 
 // Reads and returns a private key from a file.
 // If the file does not exist, generate a new private key, save it to the file, then return it.
@@ -126,20 +108,6 @@ let opts = {
   txStatusRetries: "",
 };
 
-let privateKey: PrivateKey;
-let publicKey: PublicKey;
-
-if (!opts.help) {
-  program.parse();
-  opts = program.opts();
-
-  privateKey = await getPrivateKeyFromFile(opts.key);
-  publicKey = privateKey.toPublicKey();
-  console.log(`Using key from ${opts.key}:`, publicKey.toBase58());
-}
-
-if (opts.debug && !opts.help) console.log("opts", opts);
-
 // fire up the appchain client!
 await client.start();
 const admin = client.runtime.resolve("Admin");
@@ -149,38 +117,22 @@ const nodes = client.runtime.resolve("Nodes");
 const pki = client.runtime.resolve("Pki");
 const token = client.runtime.resolve("Token");
 
-// helper function to send transactions
-let nonce: number | undefined;
-const txer = async (txfn: () => Promise<void>): Promise<CommandResponse> => {
-  const tx = await client.transaction(publicKey, txfn, { nonce });
-  console.log("tx.nonce", tx.transaction!.nonce.toString());
-  tx.transaction = tx.transaction?.sign(privateKey);
-  await tx.send();
+let privateKey: PrivateKey;
+let publicKey: PublicKey;
+let txQueue: TxHandler;
 
-  if (tx.transaction) {
-    // client.transaction will fetch nonce from the chain if not given as an option.
-    // An internally tracked nonce only works for one agent instance per public key
-    // but enables submission of many txns without waiting for their confirmation.
-    if (opts.nonce) nonce = Number(tx.transaction.nonce) + 1;
+if (!opts.help) {
+  program.parse();
+  opts = program.opts();
 
-    const { status, statusMessage } = await getTxnStatus(
-      tx.transaction,
-      () => {
-        console.log("⏳ waiting for tx to be confirmed...");
-      },
-      parseInt(opts.txStatusInterval),
-      parseInt(opts.txStatusRetries),
-    );
-    return {
-      status,
-      data: status !== FAILURE ? statusMessage : undefined,
-      error: status === FAILURE ? statusMessage : undefined,
-      tx: tx.transaction.hash().toString(),
-    };
-  }
+  privateKey = await getPrivateKeyFromFile(opts.key);
+  publicKey = privateKey.toPublicKey();
+  console.log(`Using key from ${opts.key}:`, publicKey.toBase58());
 
-  return { status: PENDING };
-};
+  if (opts.debug) console.log("opts", opts);
+
+  txQueue = new TxHandler(client, publicKey, privateKey, opts);
+}
 
 ////////////////////////////////////////////////////////////////////////
 // Commands
@@ -192,6 +144,9 @@ const executeCommand = async (
   callback: (response: CommandResponse, debug?: any) => void,
 ) => {
   const { command, payload, id } = request;
+
+  // transaction submission helper
+  const txer = async (fn: () => Promise<void>) => txQueue.submitTx(fn, request);
 
   // common responses
   const responses: Record<string, CommandResponse> = {
@@ -349,16 +304,9 @@ const executeCommand = async (
     .command("getActive")
     .description("get the identifier of the active network(s)")
     .action(async () => {
-      const nid = (await client.query.runtime.Networks.activeNetwork.get()) as
-        | Field
-        | undefined;
-      if (!nid) return callback(responses.RECORD_NOT_FOUND);
-
-      // retrieve the string form of the network identifier
-      const n = await client.query.runtime.Networks.networks.get(nid);
+      const n = await qry.processor.getActiveNetwork();
       if (!n) return callback(responses.RECORD_NOT_FOUND);
-
-      callback({ id, status: SUCCESS, data: n.identifier.toString() });
+      callback({ id, status: SUCCESS, data: n.identifier });
     });
   commandNetworks
     .command("getNetwork <identifier> [file://]")
@@ -368,28 +316,23 @@ const executeCommand = async (
     .action(async (identifier: string, file?: string) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
-      var networkID: Field;
+      var networkID: string;
       if (identifier === "_") {
-        const nid =
-          (await client.query.runtime.Networks.activeNetwork.get()) as
-            | Field
-            | undefined;
-        if (!nid) return callback(responses.RECORD_NOT_FOUND);
-        networkID = nid;
+        const n = await qry.processor.getActiveNetwork();
+        if (!n) return callback(responses.RECORD_NOT_FOUND);
+        networkID = n.identifier;
       } else {
-        networkID = Network.getID(CircuitString.fromString(identifier));
+        networkID = identifier;
       }
 
-      const network = (await client.query.runtime.Networks.networks.get(
-        networkID,
-      )) as Network | undefined;
+      const network = await qry.processor.getNetwork(networkID);
       if (!network) return callback(responses.RECORD_NOT_FOUND);
 
-      const cid = network.parametersCID.toString();
+      const cid = network.parametersCID;
       const parameters = await ipfsNode.getBytes(cid);
       if (file) await putBytesToFile(file, parameters);
 
-      const { parametersCID, ...rest } = Network.toObject(network);
+      const { parametersCID, ...rest } = network;
       const data = {
         parameters,
         ...rest,
@@ -535,13 +478,11 @@ const executeCommand = async (
     .action(async (epoch: number) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
-      const cid_ = await client.query.runtime.Pki.documents.get(
-        Field.from(epoch),
-      );
-      if (!cid_) return callback(responses.RECORD_NOT_FOUND);
+      const doc = await qry.processor.getPkiDocument(epoch);
+      if (!doc) return callback(responses.RECORD_NOT_FOUND);
 
       // get data from IPFS by cid
-      const cid = cid_.toString();
+      const cid = doc.cid;
       const data = await ipfsNode.getBytes(cid);
 
       const debug = { epoch, cid };
@@ -661,7 +602,7 @@ const executeCommand = async (
     .command("getTxnState <hash>")
     .description("get the state of a transaction")
     .action(async (hash: string) => {
-      const data = await getTxnState(hash);
+      const data = await qry.sequencer.getTxnState(hash);
       callback({ id, status: SUCCESS, data });
     });
 
@@ -761,8 +702,12 @@ const server = net.createServer((socket) => {
           });
 
           const req = decoded.value as CommandRequest;
+          console.log(`\n❯❯❯ [${req.id}] ${req.command}`);
           await executeCommand(new Command(), req, (res, debug) => {
-            console.log(`\n❯ ${req.command} => ${JSON.stringify(res, rep)}`);
+            console.log(
+              `❮❮❮ [${req.id}] ${req.command}`,
+              `❮❮❮ ${JSON.stringify(res, rep)}`,
+            );
             if (opts.debug && debug) console.log("DEBUG:", debug);
             const out = cbor.encode(res);
             socket.write(out);
