@@ -478,13 +478,11 @@ const executeCommand = async (
     .action(async (epoch: number) => {
       if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
 
-      const cid_ = await client.query.runtime.Pki.documents.get(
-        Field.from(epoch),
-      );
-      if (!cid_) return callback(responses.RECORD_NOT_FOUND);
+      const doc = await qry.processor.getPkiDocument(epoch);
+      if (!doc) return callback(responses.RECORD_NOT_FOUND);
 
       // get data from IPFS by cid
-      const cid = cid_.toString();
+      const cid = doc.cid;
       const data = await ipfsNode.getBytes(cid);
 
       const debug = { epoch, cid };
