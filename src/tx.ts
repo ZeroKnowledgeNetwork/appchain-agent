@@ -1,6 +1,6 @@
 import { PrivateKey, PublicKey } from "o1js";
 import { CommandRequest, CommandResponse, FAILURE, PENDING } from "./types";
-import { qry } from "chain";
+import { qry } from "@zkn/qry";
 
 interface TxTask {
   txfn: () => Promise<void>;

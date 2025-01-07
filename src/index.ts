@@ -20,8 +20,8 @@ import {
   Node,
   TreasuryId,
   client,
-  qry,
-} from "chain";
+} from "@zkn/chain";
+import { qry } from "@zkn/qry";
 import { IPFSNode } from "./ipfs";
 import { TxHandler } from "./tx";
 import { CommandRequest, CommandResponse, FAILURE, SUCCESS } from "./types";
