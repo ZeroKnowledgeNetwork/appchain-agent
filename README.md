@@ -39,7 +39,7 @@ cd ../appchain
 pnpm install
 
 # build appchain for appchain-agent
-pnpm run build --filter=chain
+pnpm run build --filter chain --filter qry
 
 # run appchain sequencer, for example
 pnpm env:inmemory dev --filter chain -- --logLevel DEBUG
