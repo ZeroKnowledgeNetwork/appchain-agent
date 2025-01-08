@@ -84,7 +84,7 @@ program
   .option(
     "--tx-status-interval <interval>",
     "status check interval (ms)",
-    "1000",
+    "5000",
   )
   .option(
     "--tx-status-retries <retries>",
