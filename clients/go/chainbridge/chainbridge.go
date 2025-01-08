@@ -104,6 +104,7 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 		dialRetries: 10,
 		dialTimeout: 3 * time.Second,
 		cmdTimeout:  20 * time.Second,
+		idCounter:   0,
 		reconnect:   true,
 		isConnected: false,
 	}
@@ -267,8 +268,8 @@ func (c *ChainBridge) Command(command string, payload []byte) (CommandResponse, 
 
 	// Generate a unique ID for the request
 	c.idCounterMu.Lock()
-	reqID := c.idCounter
 	c.idCounter++
+	reqID := c.idCounter
 	c.idCounterMu.Unlock()
 
 	req := CommandRequest{
