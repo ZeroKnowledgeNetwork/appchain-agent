@@ -101,10 +101,10 @@ func NewChainBridge(socketFileOrCommandName string, commandArgs ...string) *Chai
 	return &ChainBridge{
 		cmd:         cmd,
 		socketFile:  socketFileOrCommandName,
-		dialRetries: 10,
-		dialTimeout: 3 * time.Second,
-		cmdTimeout:  20 * time.Second,
 		idCounter:   0,
+		dialRetries: 15,
+		dialTimeout: 10 * time.Second,
+		cmdTimeout:  50 * time.Second,
 		reconnect:   true,
 		isConnected: false,
 	}
