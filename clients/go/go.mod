@@ -1,4 +1,4 @@
-module github.com/0KnowledgeNetwork/appchain-agent/clients/go
+module github.com/ZeroKnowledgeNetwork/appchain-agent/clients/go
 
 go 1.22.3
 

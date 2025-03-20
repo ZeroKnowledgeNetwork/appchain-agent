@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/0KnowledgeNetwork/appchain-agent/clients/go/chainbridge"
+	"github.com/ZeroKnowledgeNetwork/appchain-agent/clients/go/chainbridge"
 	"github.com/fxamacker/cbor/v2"
 )
 
