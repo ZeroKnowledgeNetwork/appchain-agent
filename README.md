@@ -1,7 +1,7 @@
-# 0KN ZK AppChain Agent
+# ZKN ZK AppChain Agent
 
-The 0KN AppChain Agent provides a command-line interface and communications
-bridge with full coverage of 0KN's appchain runtime modules. It has a server
+The ZKN AppChain Agent provides a command-line interface and communications
+bridge with full coverage of ZKN's appchain runtime modules. It has a server
 mode with developing client libraries to connect appchain operations to other
 programming languages through a UNIX domain socket.
 
@@ -12,9 +12,9 @@ with the data's Content Identifier indexed within the appchain.
 
 ## Installation
 
-This project uses local `file:` references to 0KN's
-[appchain](https://github.com/0KnowledgeNetwork/appchain) and
-[protokit](https://github.com/0KnowledgeNetwork/protokit).
+This project uses local `file:` references to ZKN's
+[appchain](https://github.com/ZeroKnowledgeNetwork/appchain) and
+[protokit](https://github.com/ZeroKnowledgeNetwork/protokit).
 
 Place the projects in the same directory and ensure alignment of their git refs:
 
