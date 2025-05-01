@@ -19,6 +19,8 @@ import {
   Network,
   Node,
   TreasuryId,
+  Vote,
+  Voter,
   client,
 } from "@zkn/chain";
 import { qry } from "@zkn/qry";
@@ -111,6 +113,7 @@ let opts = {
 // fire up the appchain client!
 await client.start();
 const admin = client.runtime.resolve("Admin");
+const consensus = client.runtime.resolve("Consensus");
 const faucet = client.runtime.resolve("Faucet");
 const networks = client.runtime.resolve("Networks");
 const nodes = client.runtime.resolve("Nodes");
@@ -177,6 +180,114 @@ const executeCommand = async (
         callback({ id, ...r });
       });
   }
+
+  const commandConsensus = program
+    .command("consensus")
+    .description("consensus commands");
+  commandConsensus
+    .command("register")
+    .description("register to vote")
+    .action(async () => {
+      const voter = new Voter({ identifier: publicKey });
+      const r = await txer(async () => {
+        await consensus.register(voter);
+      });
+      callback({ id, ...r });
+    });
+  commandConsensus
+    .command("commitVote <network> <epoch> <salt> [file://]")
+    .description("[listen] commit hidden vote <vote := file:// OR payload>")
+    .action(
+      async (network: number, epoch: number, salt: number, file?: string) => {
+        if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+
+        // get vote data from file or payload
+        const _payload = file ? await getBytesFromFile(file) : payload;
+        if (!_payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+        // store the vote data on IPFS
+        const cid = await ipfsNode.putBytes(_payload);
+
+        const poll = Poseidon.hash([Field.from(network), Field.from(epoch)]);
+        const voter = new Voter({ identifier: publicKey });
+        const cidHashed = Poseidon.hash([
+          Field.from(salt),
+          CircuitString.fromString(cid).hash(),
+        ]);
+
+        // register vote commit with appchain
+        const r = await txer(async () => {
+          await consensus.commit(
+            Vote.newCommit({
+              poll,
+              voterId: voter.id,
+              cidHashed,
+            }),
+          );
+        });
+
+        const debug = { poll, salt, cidHashed, cid, tx: r.tx };
+        callback({ id, ...r }, debug);
+      },
+    );
+  commandConsensus
+    .command("revealVote <network> <epoch> <salt> [file://]")
+    .description("[listen] reveal hidden vote <vote := file:// OR payload>")
+    .action(
+      async (network: number, epoch: number, salt: number, file?: string) => {
+        if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+
+        // get vote data from file or payload
+        const _payload = file ? await getBytesFromFile(file) : payload;
+        if (!_payload) return callback(responses.PAYLOAD_UNDEFINED);
+
+        // re-store the vote data on IPFS (abstract CID management away from caller)
+        const cid = await ipfsNode.putBytes(_payload);
+        console.log("cid", cid);
+
+        const poll = Poseidon.hash([Field.from(network), Field.from(epoch)]);
+        const voter = new Voter({ identifier: publicKey });
+        const cidHashed = Poseidon.hash([
+          Field.from(salt),
+          CircuitString.fromString(cid).hash(),
+        ]);
+
+        const vote = Vote.newCommit({
+          poll,
+          voterId: voter.id,
+          cidHashed,
+        });
+        vote.reveal({
+          salt: Field.from(salt),
+          cid: CircuitString.fromString(cid),
+        });
+
+        // reveal vote by updating previous commit
+        const r = await txer(async () => {
+          await consensus.reveal(vote);
+        });
+
+        const debug = { poll, salt, cidHashed, cid, tx: r.tx };
+        callback({ id, ...r }, debug);
+      },
+    );
+  commandConsensus
+    .command("getConsensus <network> <epoch>")
+    .description("get the results of the poll")
+    .action(async (network: number, epoch: number) => {
+      if (!ipfsNode) return callback(responses.IPFS_NOT_STARTED);
+
+      const poll = Poseidon.hash([Field.from(network), Field.from(epoch)]);
+      const results = await qry.processor.getConsensus(poll.toString());
+      if (!results) return callback(responses.RECORD_NOT_FOUND);
+
+      // get data from IPFS by cid
+      const cid = results.cid;
+      const data = await ipfsNode.getBytes(cid);
+
+      const debug = { results, data };
+      callback({ id, status: SUCCESS, data }, debug);
+    });
 
   const commandFaucet = program
     .command("faucet")

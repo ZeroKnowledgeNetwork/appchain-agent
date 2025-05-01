@@ -76,6 +76,10 @@ var (
 
 // appchain-agent commands; cuz compile errors are better than runtime errors
 var (
+	Cmd_consensus_commitVote        = "consensus commitVote %d %d %d"
+	Cmd_consensus_getConsensus      = "consensus getConsensus %d %d"
+	Cmd_consensus_register          = "consensus register"
+	Cmd_consensus_revealVote        = "consensus revealVote %d %d %d"
 	Cmd_networks_getNetwork         = "networks getNetwork %s"
 	Cmd_networks_register           = "networks register %s"
 	Cmd_nodes_getNode               = "nodes getNode %s"
